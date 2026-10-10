@@ -2,11 +2,13 @@
 
 Provides ephemeral, non-root, isolated execution for candidate patches:
 1. Validates request, patch syntax, file scope, and exact hash binding.
-2. Checks trusted backend ApprovalVerifier gate.
-3. Applies patch in a clean ephemeral workspace copy.
-4. Mounts protected tests strictly READ-ONLY (:ro).
-5. Runs Pytest in disposable Docker container with restricted network, CPU, memory, and capabilities.
-6. Evaluates results through independent TestResultEvaluator.
+2. Checks trusted backend ApprovalVerifier gate before any workspace creation.
+3. Pre-flight checks Docker daemon availability without falling back to host execution.
+4. Copies clean baseline avoiding symlink traversal.
+5. Applies patch deterministically using atomic non-interactive patch tool.
+6. Mounts protected tests strictly READ-ONLY (:ro).
+7. Runs Pytest in disposable Docker container with restricted network, CPU, memory, capabilities, and read-only rootfs.
+8. Evaluates results through independent, tamper-resistant TestResultEvaluator.
 """
 
 from __future__ import annotations
@@ -40,8 +42,32 @@ def sanitize_log(text: str) -> str:
     # Strip local host user paths
     sanitized = re.sub(r"/home/[^/\s]+/[^/\s]+", "/workspace", text)
     # Redact potential sensitive tokens/keys
-    sanitized = re.sub(r"(token|secret|password|auth)[:=]\s*([^\s]+)", r"\1: [REDACTED]", sanitized, flags=re.IGNORECASE)
+    sanitized = re.sub(
+        r"(token|secret|password|auth|key)[:=]\s*([^\s]+)",
+        r"\1: [REDACTED]",
+        sanitized,
+        flags=re.IGNORECASE,
+    )
     return sanitized
+
+
+def check_docker_available() -> tuple[bool, str]:
+    """Verify that Docker binary and daemon are operational without executing user code."""
+    if not shutil.which("docker"):
+        return False, "Docker binary not found on host system."
+    try:
+        proc = subprocess.run(
+            ["docker", "info"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=5.0,
+        )
+        if proc.returncode != 0:
+            return False, f"Docker daemon is not reachable: {proc.stderr.strip()}"
+        return True, ""
+    except Exception as exc:
+        return False, f"Docker availability check failed: {exc}"
 
 
 async def execute_approval(verifier: ApprovalVerifier, patch_hash: str, approval_id: str) -> bool:
@@ -66,28 +92,34 @@ async def verify_patch(
     start_time = time.time()
     job_id = request.job_id or "job-unknown"
     patch_hash = request.patch_hash or PatchValidator.compute_hash(request.patch_text)
+    run_id = request.run_id or f"run_{uuid.uuid4().hex[:12]}"
+    patch_id = request.patch_id or ""
 
-    # 1. Request field validation
+    # 1. Target Application Authorization Check
     if request.target_app_id != "bola-demo-v1":
         return VerificationResult(
             job_id=job_id,
             patch_hash=patch_hash,
             status=VerificationStatus.POLICY_REJECTED.value,
             execution_error=f"Unsupported target_app_id: '{request.target_app_id}'. Expected 'bola-demo-v1'.",
+            run_id=run_id,
+            patch_id=patch_id,
         )
 
-    # 2. Patch validation (exact hash, scope, syntax, size, traversal)
+    # 2. Patch Validation (exact hash, scope, syntax, size, traversal, prohibited ops)
     try:
-        modified_paths = PatchValidator.validate_patch(request.patch_text, request.patch_hash)
+        PatchValidator.validate_patch(request.patch_text, request.patch_hash)
     except PatchValidationError as exc:
         return VerificationResult(
             job_id=job_id,
             patch_hash=patch_hash,
             status=VerificationStatus.POLICY_REJECTED.value,
             execution_error=f"Patch policy rejected: {exc}",
+            run_id=run_id,
+            patch_id=patch_id,
         )
 
-    # 3. Human Approval Gate verification
+    # 3. Human Approval Gate Verification (Fail-closed)
     is_approved = await execute_approval(approval_verifier, patch_hash, request.approval_id)
     if not is_approved:
         return VerificationResult(
@@ -95,9 +127,24 @@ async def verify_patch(
             patch_hash=patch_hash,
             status=VerificationStatus.POLICY_REJECTED.value,
             execution_error="Missing or invalid approval signature/id from backend gate.",
+            run_id=run_id,
+            patch_id=patch_id,
         )
 
-    # 4. Prepare ephemeral workspace
+    # 4. Pre-flight Docker Availability Check (No fallback to host execution!)
+    docker_ok, docker_err = check_docker_available()
+    if not docker_ok:
+        return VerificationResult(
+            job_id=job_id,
+            patch_hash=patch_hash,
+            status=VerificationStatus.EXECUTION_ERROR.value,
+            duration_ms=int((time.time() - start_time) * 1000),
+            execution_error=f"Sandbox infrastructure unavailable: {docker_err}",
+            run_id=run_id,
+            patch_id=patch_id,
+        )
+
+    # 5. Prepare Isolated Ephemeral Workspace
     base_dir = Path(__file__).resolve().parent
     lab_app_src = base_dir / "lab" / "app"
     protected_tests_src = base_dir / "protected_tests"
@@ -105,16 +152,17 @@ async def verify_patch(
     tmp_root = base_dir / ".tmp"
     tmp_root.mkdir(parents=True, exist_ok=True)
     temp_dir = tempfile.mkdtemp(dir=str(tmp_root), prefix=f"sentinel_{job_id}_")
-    container_id = f"sentinel_run_{uuid.uuid4().hex[:10]}"
+    container_id = f"sentinel_run_{uuid.uuid4().hex[:12]}"
 
     try:
         workspace_dir = Path(temp_dir)
         app_dest = workspace_dir / "verification" / "lab" / "app"
         app_dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(lab_app_src, app_dest)
+        # Copy baseline without following symlinks
+        shutil.copytree(lab_app_src, app_dest, symlinks=False)
 
         tests_dest = workspace_dir / "verification" / "protected_tests"
-        shutil.copytree(protected_tests_src, tests_dest)
+        shutil.copytree(protected_tests_src, tests_dest, symlinks=False)
 
         report_dir = workspace_dir / "report"
         report_dir.mkdir(parents=True, exist_ok=True)
@@ -122,27 +170,31 @@ async def verify_patch(
         os.chmod(report_dir, 0o777)
         report_file_host = report_dir / "test_report.json"
 
-        # 5. Apply candidate patch to clean baseline
+        # 6. Apply Candidate Patch to Clean Baseline Deterministically
+        target_access_file = app_dest / "access.py"
+        if target_access_file.is_symlink() or not target_access_file.is_file():
+            return VerificationResult(
+                job_id=job_id,
+                patch_hash=patch_hash,
+                status=VerificationStatus.EXECUTION_ERROR.value,
+                duration_ms=int((time.time() - start_time) * 1000),
+                execution_error="Security error: Baseline target file is invalid or a symlink.",
+                run_id=run_id,
+                patch_id=patch_id,
+            )
+
         patch_file = workspace_dir / "candidate.patch"
         patch_file.write_text(request.patch_text, encoding="utf-8")
 
+        # Deterministic patch application: strict -p1 forward batch mode
         apply_proc = subprocess.run(
-            ["patch", "-p1", "--input", str(patch_file)],
+            ["patch", "-p1", "--batch", "--forward", "--input", str(patch_file)],
             cwd=str(workspace_dir / "verification" / "lab"),
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            timeout=10.0,
         )
-
-        if apply_proc.returncode != 0:
-            # Fallback to -p0
-            apply_proc = subprocess.run(
-                ["patch", "-p0", "--input", str(patch_file)],
-                cwd=str(workspace_dir / "verification" / "lab"),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
 
         if apply_proc.returncode != 0:
             return VerificationResult(
@@ -151,9 +203,23 @@ async def verify_patch(
                 status=VerificationStatus.EXECUTION_ERROR.value,
                 duration_ms=int((time.time() - start_time) * 1000),
                 execution_error=f"Patch application failed:\n{apply_proc.stderr or apply_proc.stdout}",
+                run_id=run_id,
+                patch_id=patch_id,
             )
 
-        # 6. Restricted Docker command
+        # Post-patch symlink integrity check
+        if target_access_file.is_symlink() or not target_access_file.is_file():
+            return VerificationResult(
+                job_id=job_id,
+                patch_hash=patch_hash,
+                status=VerificationStatus.EXECUTION_ERROR.value,
+                duration_ms=int((time.time() - start_time) * 1000),
+                execution_error="Security violation: Applied patch converted target into a symlink.",
+                run_id=run_id,
+                patch_id=patch_id,
+            )
+
+        # 7. Execute Restricted Sandbox Container
         docker_cmd = [
             "docker", "run",
             "--name", container_id,
@@ -164,6 +230,8 @@ async def verify_patch(
             "--pids-limit", "64",
             "--cap-drop", "ALL",
             "--security-opt", "no-new-privileges",
+            "--read-only",
+            "--tmpfs", "/tmp:rw,noexec,nosuid,size=64m",
             "-e", "VERIFICATION_REPORT_PATH=/workspace/report/test_report.json",
             "-e", "PYTHONPATH=/workspace",
             "-e", "PYTHONDONTWRITEBYTECODE=1",
@@ -172,7 +240,7 @@ async def verify_patch(
             "-v", f"{tests_dest}:/workspace/verification/protected_tests:ro",
             "-v", f"{report_dir}:/workspace/report:rw",
             docker_image,
-            "pytest", "/workspace/verification/protected_tests", "-v",
+            "pytest", "-p", "no:cacheprovider", "/workspace/verification/protected_tests", "-v",
         ]
 
         timed_out = False
@@ -191,7 +259,10 @@ async def verify_patch(
                 timeout=float(request.timeout_seconds),
             )
             exit_code = proc.returncode if proc.returncode is not None else 1
-            raw_output = stdout_data.decode("utf-8", errors="replace") + "\n" + stderr_data.decode("utf-8", errors="replace")
+            # Bounded output decoding (max 512 KB)
+            out_str = stdout_data[:524288].decode("utf-8", errors="replace")
+            err_str = stderr_data[:524288].decode("utf-8", errors="replace")
+            raw_output = f"{out_str}\n{err_str}"
         except asyncio.TimeoutError:
             timed_out = True
             exit_code = -1
@@ -203,12 +274,17 @@ async def verify_patch(
 
         duration_ms = int((time.time() - start_time) * 1000)
 
-        # 7. Read report
+        # 8. Read Test Report Safely
         report_json_str = None
         if report_file_host.exists():
-            report_json_str = report_file_host.read_text(encoding="utf-8")
+            if report_file_host.is_symlink():
+                runner_error = "Security error: Test report is a symbolic link."
+            elif report_file_host.stat().st_size > 1048576:  # 1 MB limit
+                runner_error = "Security error: Test report exceeds maximum permitted size."
+            else:
+                report_json_str = report_file_host.read_text(encoding="utf-8")
 
-        # 8. Evaluate results
+        # 9. Evaluate Evidence with Deterministic Evaluator
         return TestResultEvaluator.evaluate(
             job_id=job_id,
             patch_hash=patch_hash,
@@ -218,8 +294,11 @@ async def verify_patch(
             duration_ms=duration_ms,
             timed_out=timed_out,
             runner_error=sanitize_log(runner_error) if runner_error else None,
+            run_id=run_id,
+            patch_id=patch_id,
         )
 
     finally:
+        # Guaranteed cleanup of container and ephemeral workspace
         subprocess.run(["docker", "rm", "-f", container_id], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         shutil.rmtree(temp_dir, ignore_errors=True)

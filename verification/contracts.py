@@ -51,6 +51,10 @@ class VerificationRequest(_BaseModel):
     patch_text: str = ""
     patch_hash: str = ""
     approval_id: str = ""
+    patch_id: str = ""
+    source_revision: str = ""
+    run_id: str = ""
+    attempt: int = 0
     timeout_seconds: int = 30
 
 
@@ -66,3 +70,5 @@ class VerificationResult(_BaseModel):
     failed_tests: List[str] = field(default_factory=list)
     duration_ms: int = 0
     execution_error: Optional[str] = None
+    run_id: Optional[str] = None
+    patch_id: Optional[str] = None
