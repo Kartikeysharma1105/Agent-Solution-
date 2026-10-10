@@ -4,6 +4,7 @@ Autonomous security patch verification with restricted Docker execution,
 deterministic policy analysis, and independent test evaluation.
 """
 
+from .adapter import verify_backend_patch
 from .contracts import (
     ApprovalVerifier,
     VerificationRequest,
@@ -23,4 +24,5 @@ __all__ = [
     "PatchValidator",
     "PatchValidationError",
     "verify_patch",
+    "verify_backend_patch",
 ]

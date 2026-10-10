@@ -2,18 +2,19 @@
 
 Enforces:
 1. Unified-diff syntax only.
-2. Changes restricted ONLY to 'app/access.py'.
+2. Changes restricted ONLY to authorized 'app/access.py'.
 3. Protection of tests, runners, Dockerfiles, and configurations.
-4. Prevention of path traversal, absolute paths, and binary patches.
-5. Maximum patch size enforcement.
-6. Exact SHA-256 byte hashing and verification.
+4. Prevention of path traversal, absolute paths, binary patches, and file deletions/renames.
+5. Maximum patch size enforcement (32 KB limit).
+6. Exact SHA-256 byte hashing and verification (raw hex or 'sha256:<hex>' format).
+7. Prohibits malicious code patterns (e.g. os.system, subprocess, eval, test evasion).
 """
 
 from __future__ import annotations
 
 import hashlib
 import re
-from typing import List, Sequence
+from typing import List, Optional, Sequence, Set
 
 
 class PatchValidationError(Exception):
@@ -24,13 +25,29 @@ class PatchValidationError(Exception):
 class PatchValidator:
     """Validates candidate patch diffs against strict safety policies."""
 
-    MAX_PATCH_BYTES = 65536  # 64 KB limit
+    MAX_PATCH_BYTES = 32768  # 32 KB limit matching backend policy
 
     # Authorized target files that an untrusted AI patch may modify
     ALLOWED_TARGET_FILES = {
         "app/access.py",
         "lab/app/access.py",
     }
+
+    # Forbidden markers (binary patches, prohibited git mode/rename operations)
+    FORBIDDEN_MARKERS = (
+        "GIT binary patch",
+        "Binary files ",
+        "literal ",
+        "delta ",
+        "new file mode ",
+        "deleted file mode ",
+        "rename from ",
+        "rename to ",
+        "copy from ",
+        "copy to ",
+        "old mode ",
+        "new mode ",
+    )
 
     # Forbidden file patterns that must never be touched
     PROTECTED_PATTERNS = [
@@ -55,7 +72,7 @@ class PatchValidator:
         (re.compile(r"@pytest\.mark\.skip"), "Forbidden test skip decorator detected"),
     ]
 
-    _DIFF_HEADER_REGEX = re.compile(r"^diff --git a/(.+) b/(.+)$", re.MULTILINE)
+    _DIFF_HEADER_REGEX = re.compile(r"^diff --git a/(\S+) b/(\S+)$", re.MULTILINE)
     _OLD_FILE_REGEX = re.compile(r"^--- (?:a/)?([^\s\t\n]+)", re.MULTILINE)
     _NEW_FILE_REGEX = re.compile(r"^\+\+\+ (?:b/)?([^\s\t\n]+)", re.MULTILINE)
 
@@ -69,10 +86,18 @@ class PatchValidator:
         return hashlib.sha256(patch_bytes).hexdigest()
 
     @classmethod
-    def verify_hash(cls, patch_content: str, expected_hash: str) -> bool:
-        """Verify that the computed hash strictly matches the expected hash."""
+    def verify_hash(cls, patch_content: str | bytes, expected_hash: str) -> bool:
+        """Verify that the computed hash strictly matches the expected hash.
+
+        Supports both raw 64-character hex strings and 'sha256:<hex>' format.
+        """
+        if not expected_hash or not isinstance(expected_hash, str):
+            return False
         computed = cls.compute_hash(patch_content)
-        return computed.lower() == expected_hash.strip().lower()
+        cleaned_expected = expected_hash.strip().lower()
+        if cleaned_expected.startswith("sha256:"):
+            cleaned_expected = cleaned_expected[7:]
+        return computed.lower() == cleaned_expected
 
     @classmethod
     def validate_patch(cls, patch_text: str, expected_hash: Optional[str] = None) -> List[str]:
@@ -89,10 +114,12 @@ class PatchValidator:
 
         patch_bytes = patch_text.encode("utf-8")
         if len(patch_bytes) > cls.MAX_PATCH_BYTES:
-            raise PatchValidationError(f"Patch exceeds maximum permitted size ({len(patch_bytes)} > {cls.MAX_PATCH_BYTES} bytes).")
+            raise PatchValidationError(
+                f"Patch exceeds maximum permitted size ({len(patch_bytes)} > {cls.MAX_PATCH_BYTES} bytes)."
+            )
 
-        # Check for binary diffs
-        if "GIT binary patch" in patch_text or "\x00" in patch_text:
+        # Check for binary diffs or prohibited git file operations
+        if "\x00" in patch_text or any(marker in patch_text for marker in cls.FORBIDDEN_MARKERS):
             raise PatchValidationError("Binary patches are strictly forbidden.")
 
         # Hash verification
@@ -101,7 +128,7 @@ class PatchValidator:
                 raise PatchValidationError("Patch hash mismatch: computed hash does not match expected approval hash.")
 
         # Extract target paths
-        paths: set[str] = set()
+        paths: Set[str] = set()
         git_matches = cls._DIFF_HEADER_REGEX.findall(patch_text)
         for old_p, new_p in git_matches:
             paths.add(old_p)
@@ -133,7 +160,9 @@ class PatchValidator:
 
             # Check authorized target scope
             if cleaned not in cls.ALLOWED_TARGET_FILES:
-                raise PatchValidationError(f"Modification of '{cleaned}' is unauthorized. Only {cls.ALLOWED_TARGET_FILES} may be patched.")
+                raise PatchValidationError(
+                    f"Modification of '{cleaned}' is unauthorized. Only {cls.ALLOWED_TARGET_FILES} may be patched."
+                )
 
             cleaned_paths.append(cleaned)
 
