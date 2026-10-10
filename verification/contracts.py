@@ -53,6 +53,7 @@ class VerificationRequest(_BaseModel):
     approval_id: str = ""
     patch_id: str = ""
     source_revision: str = ""
+    verification_profile: str = ""
     run_id: str = ""
     attempt: int = 0
     timeout_seconds: int = 30
@@ -72,3 +73,7 @@ class VerificationResult(_BaseModel):
     execution_error: Optional[str] = None
     run_id: Optional[str] = None
     patch_id: Optional[str] = None
+    test_suite_id: Optional[str] = None
+    tests_collected: Optional[int] = None
+    collection_complete: Optional[bool] = None
+    execution_completed: Optional[bool] = None

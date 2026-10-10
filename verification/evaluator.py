@@ -19,6 +19,7 @@ class TestResultEvaluator:
 
     # Expected minimum test count for full coverage
     MIN_REQUIRED_TESTS = 8
+    TEST_SUITE_ID = "bola-required-tests-v1"
 
     # Required immutable test identifiers from protected_tests suite
     REQUIRED_TEST_NAMES: Set[str] = {
@@ -187,6 +188,30 @@ class TestResultEvaluator:
                 patch_id=patch_id,
             )
 
+        skipped = summary.get("skipped", 0)
+        if skipped or passed + failed + errored != total:
+            return VerificationResult(
+                job_id=job_id, patch_hash=patch_hash,
+                status=VerificationStatus.EXECUTION_ERROR.value,
+                tests_total=total, tests_passed=passed, tests_failed=failed + errored,
+                failed_tests=failed_tests, duration_ms=duration_ms,
+                execution_error="Required test execution was incomplete or skipped.",
+                run_id=run_id, patch_id=patch_id,
+                tests_collected=total, collection_complete=False,
+                execution_completed=False,
+            )
+        if exit_code not in (0, 1):
+            return VerificationResult(
+                job_id=job_id, patch_hash=patch_hash,
+                status=VerificationStatus.EXECUTION_ERROR.value,
+                tests_total=total, tests_passed=passed, tests_failed=failed + errored,
+                failed_tests=failed_tests, duration_ms=duration_ms,
+                execution_error="Pytest exited abnormally.",
+                run_id=run_id, patch_id=patch_id,
+                tests_collected=total, collection_complete=False,
+                execution_completed=False,
+            )
+
         # 6. Exit Code Contradiction Check (Crash after writing report)
         if exit_code != 0 and failed == 0 and errored == 0:
             return VerificationResult(
@@ -217,6 +242,10 @@ class TestResultEvaluator:
                 execution_error=None,
                 run_id=run_id,
                 patch_id=patch_id,
+                test_suite_id=cls.TEST_SUITE_ID,
+                tests_collected=total,
+                collection_complete=True,
+                execution_completed=True,
             )
 
         # 8. All Tests Passed Strictly
@@ -232,4 +261,8 @@ class TestResultEvaluator:
             execution_error=None,
             run_id=run_id,
             patch_id=patch_id,
+            test_suite_id=cls.TEST_SUITE_ID,
+            tests_collected=total,
+            collection_complete=True,
+            execution_completed=True,
         )

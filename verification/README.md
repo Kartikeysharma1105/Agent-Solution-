@@ -2,7 +2,8 @@
 
 **Tagline**: *"Don't just generate a fix. Prove that it works."*  
 **Team**: BeyondSight — neatHack 2026  
-**Ownership Boundary**: `verification/` only
+**Ownership Boundary**: `verification/` (Phase 4 contract coordinated with `backend/`)
+**Module version**: Developer 3 Layer 5; no semantic version is declared in the package.
 
 ---
 
@@ -77,6 +78,8 @@ To integrate with Developer 1's FastAPI backend, configure the environment varia
 
 ```bash
 export SENTINEL_VERIFIER_CALLABLE="verification.adapter:verify_backend_patch"
+export SENTINEL_SOURCE_ROOT="$PWD/verification/lab"
+export SENTINEL_PROTECTED_TESTS_ROOT="$PWD/verification/protected_tests"
 ```
 
 ### Callable Signature
@@ -96,12 +99,16 @@ verify_backend_patch(
 | `patch_text` | `str` | Exact unified-diff patch string |
 | `patch_hash` | `str` | `sha256:<64-hex-digits>` |
 | `approval_id` | `str` | Active operator approval identifier |
+| `attempt` | `int` | Current patch attempt |
+| `source_revision` | `str` | Exact approved target and protected-suite revision |
+| `verification_profile` | `str` | Server-owned `bola-required-tests-v1` profile |
+| `run_id` | `str` | Exact backend verification run |
 
 ### Status Mapping & Count Invariants
 | Verification Engine Status | Backend Status | Backend Rules Satisfied |
 |---|---|---|
-| `VERIFIED` | `PASSED` | `tests_total > 0`, `tests_failed == 0`, `execution_error is None` |
-| `VERIFICATION_FAILED` | `FAILED` | `tests_failed > 0` |
+| `VERIFIED` | `PASSED` | Required eight-test inventory, complete collection, 8/8 pass, matching job/patch/hash/run/revision/profile |
+| `VERIFICATION_FAILED` | `FAILED` | Required suite collected and executed, consistent counts, at least one failed test |
 | `EXECUTION_ERROR` | `EXECUTION_ERROR` | `execution_error is not None` |
 | `POLICY_REJECTED` | `EXECUTION_ERROR` (Fail-closed) | `execution_error is not None`, `tests_total == 0` |
 
@@ -114,11 +121,14 @@ verify_backend_patch(
 export PYTHONPATH="$PWD"
 export SENTINEL_DB_PATH="$PWD/backend/sentinel.db"
 export SENTINEL_SOURCE_ROOT="$PWD/verification/lab"
+export SENTINEL_PROTECTED_TESTS_ROOT="$PWD/verification/protected_tests"
 export SENTINEL_FRONTEND_ORIGIN="http://localhost:5173"
 export SENTINEL_OPERATOR_NAME="local-operator"
-export SENTINEL_OPERATOR_TOKEN="your-secure-operator-token"
+read -rsp 'Local operator token (32+ ASCII characters): ' SENTINEL_OPERATOR_TOKEN
+echo
+export SENTINEL_OPERATOR_TOKEN
 export SENTINEL_VERIFIER_CALLABLE="verification.adapter:verify_backend_patch"
-export SENTINEL_AGENT_CALLABLE="agent.planner:propose_patch"
+export SENTINEL_AGENT_CALLABLE="agent.planner:propose_patch"  # configure only when agent/ is supplied
 ```
 
 ### Starting the FastAPI Server:
@@ -130,12 +140,12 @@ python3 -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
 
 ## 5. Running Verification Tests
 
-### Run all verification unit and integration tests (31 tests):
+### Run all verification unit and integration tests (69 tests after Phase 4):
 ```bash
 python3 -m pytest verification/tests/ -v
 ```
 
-### Run complete test suite (verification + backend tests, 45 tests):
+### Run complete test suite (verification + backend tests, 123 tests after Phase 4):
 ```bash
 python3 -m pytest verification/tests/ backend/tests/ -v
 ```
@@ -144,3 +154,7 @@ python3 -m pytest verification/tests/ backend/tests/ -v
 ```bash
 docker build -t sentinel-verification-lab:latest -f verification/Dockerfile verification/
 ```
+
+## Phase 4 evidence contract
+
+`verify_backend_patch` rejects missing or mismatched run, attempt, profile, patch hash and source revision before launching Docker. The revision includes both `verification/lab` and `verification/protected_tests`. The evaluator derives `test_suite_id`, `tests_collected`, `collection_complete` and `execution_completed` from the actual protected pytest report; the adapter does not fill missing evidence with guessed values. The adapter checks exact returned job, patch, hash and run IDs and rechecks source revision after execution. The canonical fixtures now satisfy the backend's strict git unified-diff policy. See `backend/PHASE4_INTEGRATION_REPORT.md` for actual Docker and backend results.
