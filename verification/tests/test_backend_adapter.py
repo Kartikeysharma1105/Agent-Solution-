@@ -49,6 +49,13 @@ class DummyBackendRequest:
         self.patch_text = patch_text
         self.patch_hash = patch_hash
         self.approval_id = approval_id
+        from backend.manifest import TARGET_MANIFEST
+        verifier_root = Path(__file__).resolve().parent.parent
+        self.attempt = 0
+        self.source_revision = TARGET_MANIFEST.source_revision(
+            verifier_root / "lab", verifier_root / "protected_tests")
+        self.verification_profile = TARGET_MANIFEST.verification_profile
+        self.run_id = "run-" + "1" * 32
 
 
 def test_adapt_approval_verifier_4_args():
@@ -209,9 +216,12 @@ def test_configured_verification_adapter_integration():
     if not HAS_BACKEND:
         pytest.skip("backend package not present")
 
+    from backend.manifest import TARGET_MANIFEST
+
     settings = Settings(
         database_path=Path("backend/sentinel.db"),
-        source_root=Path("."),
+        source_root=Path("verification/lab"),
+        protected_tests_root=Path("verification/protected_tests"),
         verifier_callable="verification.adapter:verify_backend_patch",
     )
     adapter = ConfiguredVerificationAdapter(settings)
@@ -225,6 +235,11 @@ def test_configured_verification_adapter_integration():
         patch_text=VALID_PATCH,
         patch_hash=p_hash,
         approval_id="approval-adapter",
+        attempt=0,
+        source_revision=TARGET_MANIFEST.source_revision(
+            Path("verification/lab"), Path("verification/protected_tests")),
+        verification_profile="bola-required-tests-v1",
+        run_id="run-" + "2" * 32,
     )
 
     def approval_callback(job_id, patch_id, patch_hash, approval_id):

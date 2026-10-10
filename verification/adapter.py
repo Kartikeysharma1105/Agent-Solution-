@@ -1,212 +1,179 @@
-"""Backend Integration Adapter for SENTINEL-X Verification (Developer 3 - Layer 5).
-
-Provides a compatibility entry point conforming to Dev 1's FastAPI backend:
-Configured via: SENTINEL_VERIFIER_CALLABLE=verification.adapter:verify_backend_patch
-
-Bridge Features:
-1. Accepts Dev 1's backend VerificationRequest (or dict/dataclass).
-2. Adapts backend 4-arg approval callback: approval_verifier(job_id, patch_id, patch_hash, approval_id).
-3. Enforces pre-execution approval gate checks and fail-closed security.
-4. Executes the restricted Docker sandbox verification pipeline.
-5. Translates Developer 3 verdicts (VERIFIED, VERIFICATION_FAILED, EXECUTION_ERROR, POLICY_REJECTED)
-   into backend-compatible VerificationResult schemas (PASSED, FAILED, EXECUTION_ERROR).
-6. Ensures strict consistency for tests_total, tests_passed, tests_failed, and execution_error.
-"""
+"""Strict bridge from the Phase 3 backend contract to the Docker verifier."""
 
 from __future__ import annotations
 
 import asyncio
 import concurrent.futures
 import inspect
-from typing import Any, Callable, Dict, List, Optional, Union
+from pathlib import Path
+import re
+from typing import Any, Callable, Dict
 
-from .contracts import (
-    VerificationRequest as InternalVerificationRequest,
-    VerificationResult as InternalVerificationResult,
-    VerificationStatus,
-)
+from .contracts import VerificationRequest as InternalVerificationRequest
+from .contracts import VerificationStatus
 from .patch_validator import PatchValidator, PatchValidationError
 from .runner import verify_patch
 
 
+_RUN_ID = re.compile(r"^run-[0-9a-f]{32}$")
+_HASH = re.compile(r"^sha256:[0-9a-f]{64}$")
+
+
 def _extract_field(obj: Any, field_name: str, default: Any = "") -> Any:
-    """Extract a field from either an object attribute or a dict key."""
     if isinstance(obj, dict):
         return obj.get(field_name, default)
     return getattr(obj, field_name, default)
 
 
 def _adapt_approval_verifier(
-    approval_verifier: Any,
-    job_id: str,
-    patch_id: str,
-    patch_hash: str,
-    approval_id: str,
+    approval_verifier: Any, job_id: str, patch_id: str,
+    patch_hash: str, approval_id: str,
 ) -> Callable[[str, str], bool]:
-    """Adapt backend 4-arg approval callback or 2-arg callback into a 2-arg callable."""
+    """Never substitute the approved hash for a different hash from the runner."""
     def adapted_callback(p_hash: str, a_id: str) -> bool:
-        if not callable(approval_verifier):
+        if p_hash != patch_hash or a_id != approval_id or not callable(approval_verifier):
             return False
         try:
-            sig = inspect.signature(approval_verifier)
-            param_count = len(sig.parameters)
-            if param_count == 4:
-                return bool(approval_verifier(job_id, patch_id, patch_hash or p_hash, a_id or approval_id))
-            elif param_count == 2:
-                return bool(approval_verifier(p_hash, a_id))
-            else:
-                # Fallback: attempt 4-arg then 2-arg
-                try:
-                    return bool(approval_verifier(job_id, patch_id, patch_hash or p_hash, a_id or approval_id))
-                except TypeError:
-                    return bool(approval_verifier(p_hash, a_id))
+            count = len(inspect.signature(approval_verifier).parameters)
+            if count == 4:
+                return approval_verifier(job_id, patch_id, p_hash, a_id) is True
+            if count == 2:  # Standalone verifier compatibility; backend uses four arguments.
+                return approval_verifier(p_hash, a_id) is True
+        except (TypeError, ValueError):
+            return False
         except Exception:
-            try:
-                return bool(approval_verifier(job_id, patch_id, patch_hash or p_hash, a_id or approval_id))
-            except TypeError:
-                try:
-                    return bool(approval_verifier(p_hash, a_id))
-                except Exception:
-                    return False
-
+            return False
+        return False
     return adapted_callback
 
 
 def _run_async(coro):
-    """Run an async coroutine synchronously, handling existing event loops safely."""
     try:
-        loop = asyncio.get_running_loop()
+        asyncio.get_running_loop()
     except RuntimeError:
-        loop = None
-
-    if loop is not None and loop.is_running():
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(lambda: asyncio.run(coro))
-            return future.result()
-    else:
         return asyncio.run(coro)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+        return executor.submit(lambda: asyncio.run(coro)).result()
+
+
+def _error(message: str, duration_ms: int = 0) -> Dict[str, Any]:
+    return {"status": "EXECUTION_ERROR", "tests_total": 0, "tests_passed": 0,
+            "tests_failed": 0, "failed_tests": [], "duration_ms": duration_ms,
+            "execution_error": message}
 
 
 def verify_backend_patch(
-    request: Any,
-    approval_verifier: Any,
+    request: Any, approval_verifier: Any,
     docker_image: str = "sentinel-verification-lab:latest",
 ) -> Dict[str, Any]:
-    """Primary integration callable for Dev 1's ConfiguredVerificationAdapter.
+    """Run the independent verifier and pass through only bound, complete evidence."""
+    job_id = _extract_field(request, "job_id")
+    target_app_id = _extract_field(request, "target_app_id")
+    patch_id = _extract_field(request, "patch_id")
+    patch_text = _extract_field(request, "patch_text")
+    patch_hash = _extract_field(request, "patch_hash")
+    approval_id = _extract_field(request, "approval_id")
+    attempt = _extract_field(request, "attempt", None)
+    source_revision = _extract_field(request, "source_revision")
+    profile = _extract_field(request, "verification_profile")
+    run_id = _extract_field(request, "run_id")
 
-    Expected signature: verify_backend_patch(request, approval_verifier) -> dict | VerificationResult
-    """
-    job_id = str(_extract_field(request, "job_id", "") or "job-unknown")
-    target_app_id = str(_extract_field(request, "target_app_id", "bola-demo-v1"))
-    patch_id = str(_extract_field(request, "patch_id", "") or "patch-unknown")
-    patch_text = str(_extract_field(request, "patch_text", ""))
-    patch_hash = str(_extract_field(request, "patch_hash", ""))
-    approval_id = str(_extract_field(request, "approval_id", "") or "approval-unknown")
+    if not all(isinstance(value, str) and value for value in
+               (job_id, patch_id, patch_text, patch_hash, approval_id)):
+        return _error("Missing backend verification request binding.")
+    if not _HASH.fullmatch(patch_hash):
+        return _error("Invalid approved patch hash.")
 
-    # If patch_hash is empty, compute it
-    if not patch_hash and patch_text:
-        patch_hash = "sha256:" + PatchValidator.compute_hash(patch_text)
-
-    # 1. Pre-execution backend approval reference validation (Fail-closed)
-    adapter_callback = _adapt_approval_verifier(
-        approval_verifier, job_id, patch_id, patch_hash, approval_id
-    )
-    if not adapter_callback(patch_hash, approval_id):
-        return {
-            "status": "EXECUTION_ERROR",
-            "tests_total": 0,
-            "tests_passed": 0,
-            "tests_failed": 0,
-            "failed_tests": [],
-            "duration_ms": 0,
-            "execution_error": "Approval validation failed: unverified or invalid approval reference.",
-        }
-
-    # 2. Pre-execution target app validation
+    approval_check = _adapt_approval_verifier(
+        approval_verifier, job_id, patch_id, patch_hash, approval_id)
+    if not approval_check(patch_hash, approval_id):
+        return _error("Approval validation failed: unverified or invalid approval reference.")
     if target_app_id != "bola-demo-v1":
-        return {
-            "status": "EXECUTION_ERROR",
-            "tests_total": 0,
-            "tests_passed": 0,
-            "tests_failed": 0,
-            "failed_tests": [],
-            "duration_ms": 0,
-            "execution_error": f"Policy rejected: unauthorized target_app_id '{target_app_id}'.",
-        }
-
-    # 3. Pre-execution patch syntax and policy check
+        return _error("Policy rejected: unauthorized target_app_id.")
     try:
         PatchValidator.validate_patch(patch_text, patch_hash)
-    except PatchValidationError as exc:
-        return {
-            "status": "EXECUTION_ERROR",
-            "tests_total": 0,
-            "tests_passed": 0,
-            "tests_failed": 0,
-            "failed_tests": [],
-            "duration_ms": 0,
-            "execution_error": f"Policy rejected: {exc}",
-        }
+    except PatchValidationError:
+        return _error("Policy rejected: Patch hash mismatch or invalid patch.")
 
-    # 4. Construct internal request and execute verification in Docker sandbox
+    if (not _RUN_ID.fullmatch(str(run_id)) or
+            not _HASH.fullmatch(str(source_revision)) or
+            profile != "bola-required-tests-v1" or
+            type(attempt) is not int or attempt not in (0, 1, 2)):
+        return _error("Missing or invalid Phase 3 run, source or profile binding.")
+
+    from backend.manifest import TARGET_MANIFEST
+    base_dir = Path(__file__).resolve().parent
+    lab_root = base_dir / "lab"
+    protected_root = base_dir / "protected_tests"
+    try:
+        actual_revision = TARGET_MANIFEST.source_revision(lab_root, protected_root)
+    except (OSError, ValueError):
+        return _error("Authorized verification source is unavailable.")
+    if actual_revision != source_revision:
+        return _error("Verification source revision does not match approved job.")
+
     internal_req = InternalVerificationRequest(
-        job_id=job_id,
-        target_app_id=target_app_id,
-        patch_text=patch_text,
-        patch_hash=patch_hash,
-        approval_id=approval_id,
+        job_id=job_id, target_app_id=target_app_id,
+        patch_text=patch_text, patch_hash=patch_hash,
+        approval_id=approval_id, patch_id=patch_id,
+        source_revision=source_revision, run_id=run_id,
+        attempt=attempt, verification_profile=profile,
         timeout_seconds=30,
     )
+    try:
+        result = _run_async(verify_patch(internal_req, approval_check,
+                                        docker_image=docker_image))
+    except Exception:
+        return _error("Verification runner failed.")
 
-    internal_res: InternalVerificationResult = _run_async(
-        verify_patch(internal_req, adapter_callback, docker_image=docker_image)
-    )
+    try:
+        after_revision = TARGET_MANIFEST.source_revision(lab_root, protected_root)
+    except (OSError, ValueError):
+        return _error("Verification source changed during execution.")
+    if after_revision != source_revision:
+        return _error("Verification source changed during execution.")
+    if (result.job_id != job_id or result.patch_id != patch_id or
+            result.patch_hash != patch_hash or result.run_id != run_id):
+        return _error("Verifier result does not match the requested run.")
 
-    # 5. Translate verification status into backend-compatible schema
-    raw_status = internal_res.status
-    tests_total = max(0, int(internal_res.tests_total))
-    tests_passed = max(0, int(internal_res.tests_passed))
-    tests_failed = max(0, int(internal_res.tests_failed))
-    failed_tests = list(internal_res.failed_tests or [])
-    duration_ms = max(0, int(internal_res.duration_ms))
-    execution_error = internal_res.execution_error
-
-    if raw_status == VerificationStatus.VERIFIED.value:
-        backend_status = "PASSED"
-        backend_error = None
-        # Ensure count consistency for backend validation
-        if tests_total == 0 or tests_failed > 0:
-            backend_status = "EXECUTION_ERROR"
-            backend_error = "Passing verdict requires verified test execution with zero failures."
-            tests_total = 0
-            tests_passed = 0
-            tests_failed = 0
-            failed_tests = []
-    elif raw_status == VerificationStatus.VERIFICATION_FAILED.value:
-        backend_status = "FAILED"
-        backend_error = execution_error
-        # Ensure at least 1 failed test is reported if status is FAILED
-        if tests_failed == 0:
-            tests_failed = max(1, tests_total)
-            if tests_total < tests_failed:
-                tests_total = tests_failed
-            if not failed_tests:
-                failed_tests = ["verification_test_failure"]
-    else:
-        # EXECUTION_ERROR or POLICY_REJECTED
-        backend_status = "EXECUTION_ERROR"
-        backend_error = execution_error or f"Verification error: {raw_status}"
-        tests_total = 0
-        tests_passed = 0
-        tests_failed = 0
-        failed_tests = []
-
-    return {
-        "status": backend_status,
-        "tests_total": tests_total,
-        "tests_passed": tests_passed,
-        "tests_failed": tests_failed,
-        "failed_tests": failed_tests,
-        "duration_ms": duration_ms,
-        "execution_error": backend_error,
-    }
+    duration = result.duration_ms if type(result.duration_ms) is int and result.duration_ms >= 0 else 0
+    if result.status in (VerificationStatus.VERIFIED.value,
+                         VerificationStatus.VERIFICATION_FAILED.value):
+        counts_valid = (all(type(value) is int and 0 <= value <= 100_000 for value in
+                            (result.tests_total, result.tests_passed, result.tests_failed,
+                             result.tests_collected)) and
+                        result.tests_total > 0 and
+                        result.tests_passed + result.tests_failed == result.tests_total and
+                        result.tests_collected == result.tests_total)
+        complete = (result.test_suite_id == profile and
+                    result.collection_complete is True and
+                    result.execution_completed is True and
+                    result.execution_error is None)
+        if not counts_valid or not complete:
+            return _error("Incomplete or inconsistent verifier evidence.", duration)
+        if result.status == VerificationStatus.VERIFIED.value:
+            if result.tests_failed or result.tests_passed != result.tests_total:
+                return _error("Passing verdict contradicts test results.", duration)
+            status = "PASSED"
+        else:
+            if result.tests_failed == 0:
+                return _error("Failed verdict lacks failed tests.", duration)
+            status = "FAILED"
+        return {
+            "status": status,
+            "tests_total": result.tests_total,
+            "tests_passed": result.tests_passed,
+            "tests_failed": result.tests_failed,
+            "failed_tests": list(result.failed_tests or []),
+            "duration_ms": duration,
+            "execution_error": None,
+            "test_suite_id": result.test_suite_id,
+            "tests_collected": result.tests_collected,
+            "collection_complete": result.collection_complete,
+            "execution_completed": result.execution_completed,
+            "run_id": result.run_id,
+            "patch_hash": result.patch_hash,
+            "source_revision": source_revision,
+            "verification_profile": profile,
+        }
+    return _error("Verifier reported policy or execution failure.", duration)
