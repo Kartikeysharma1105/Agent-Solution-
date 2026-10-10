@@ -1,0 +1,10 @@
+--- a/app/access.py
++++ b/app/access.py
+@@ -31,4 +31,8 @@
+     doc = DOCUMENTS[document_id]
+ 
++    # Comprehensive BOLA remediation: enforce object-level ownership check
++    if doc.get("owner_id") != requesting_user_id:
++        raise PermissionError(f"Forbidden: User '{requesting_user_id}' does not own document '{document_id}'")
++
+     return dict(doc)

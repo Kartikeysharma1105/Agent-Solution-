@@ -1,32 +1,25 @@
-"""SENTINEL-X Verification Subsystem (Layer 5 Restricted Verification).
+"""SENTINEL-X Verification Engine (Developer 3 - Layer 5).
 
-Provides deterministic policy validation, human approval verification,
-and ephemeral Docker sandbox test evaluation for candidate patches.
+Autonomous security patch verification with restricted Docker execution,
+deterministic policy analysis, and independent test evaluation.
 """
 
 from .contracts import (
-    Verdict,
-    TestCaseStatus,
-    TestCaseResult,
+    ApprovalVerifier,
     VerificationRequest,
     VerificationResult,
+    VerificationStatus,
 )
-from .approval import ApprovalVerifier, SimpleTokenApprovalVerifier, HmacApprovalVerifier
-from .policy import PolicyEngine, PolicyViolationError
+from .evaluator import TestResultEvaluator
 from .patch_validator import PatchValidator, PatchValidationError
-from .service import verify_patch
+from .runner import verify_patch
 
 __all__ = [
-    "Verdict",
-    "TestCaseStatus",
-    "TestCaseResult",
+    "ApprovalVerifier",
     "VerificationRequest",
     "VerificationResult",
-    "ApprovalVerifier",
-    "SimpleTokenApprovalVerifier",
-    "HmacApprovalVerifier",
-    "PolicyEngine",
-    "PolicyViolationError",
+    "VerificationStatus",
+    "TestResultEvaluator",
     "PatchValidator",
     "PatchValidationError",
     "verify_patch",

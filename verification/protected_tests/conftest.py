@@ -1,4 +1,4 @@
-"""Pytest hook to generate deterministic structured JSON report for TestResultEvaluator."""
+"""Pytest hook to generate structured JSON report for the independent evaluator."""
 
 import json
 import os
@@ -39,17 +39,18 @@ def pytest_sessionfinish(session: Any, exitstatus: int) -> None:
     error = sum(1 for r in _report_records if r["outcome"] not in ("passed", "failed", "skipped"))
     skipped = sum(1 for r in _report_records if r["outcome"] == "skipped")
 
-    summary = {
-        "total": total,
-        "passed": passed,
-        "failed": failed,
-        "error": error,
-        "skipped": skipped,
-    }
+    failed_test_names = [r["nodeid"] for r in _report_records if r["outcome"] == "failed"]
 
     report_payload = {
-        "summary": summary,
+        "summary": {
+            "total": total,
+            "passed": passed,
+            "failed": failed,
+            "error": error,
+            "skipped": skipped,
+        },
         "tests": _report_records,
+        "failed_tests": failed_test_names,
         "exitstatus": exitstatus,
     }
 
@@ -57,4 +58,4 @@ def pytest_sessionfinish(session: Any, exitstatus: int) -> None:
         with open(report_path, "w", encoding="utf-8") as f:
             json.dump(report_payload, f, indent=2)
     except Exception as exc:
-        print(f"Error writing verification report to {report_path}: {exc}")
+        print(f"Error writing report to {report_path}: {exc}")

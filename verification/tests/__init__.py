@@ -1,1 +1,1 @@
-"""Unit and integration tests for SENTINEL-X Verification subsystem."""
+"""Automated tests for Developer 3 Verification Module."""
