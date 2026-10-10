@@ -10,11 +10,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install Pytest
 RUN pip install --no-cache-dir pytest
 
-# Create restricted workspace
+# Create restricted non-root user for execution
+RUN useradd -m -u 1001 sandboxuser
+
+# Create restricted workspace directory
 WORKDIR /workspace
+RUN chown -R sandboxuser:sandboxuser /workspace
 
 # Python path
 ENV PYTHONPATH=/workspace
+
+# Run as non-root unprivileged user
+USER sandboxuser
 
 # Default command
 CMD ["pytest", "/workspace/verification/protected_tests", "-v"]

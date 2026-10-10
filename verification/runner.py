@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -30,6 +31,17 @@ from .contracts import (
 )
 from .evaluator import TestResultEvaluator
 from .patch_validator import PatchValidator, PatchValidationError
+
+
+def sanitize_log(text: str) -> str:
+    """Sanitize execution logs before exposing to AI or orchestrator."""
+    if not text:
+        return ""
+    # Strip local host user paths
+    sanitized = re.sub(r"/home/[^/\s]+/[^/\s]+", "/workspace", text)
+    # Redact potential sensitive tokens/keys
+    sanitized = re.sub(r"(token|secret|password|auth)[:=]\s*([^\s]+)", r"\1: [REDACTED]", sanitized, flags=re.IGNORECASE)
+    return sanitized
 
 
 async def execute_approval(verifier: ApprovalVerifier, patch_hash: str, approval_id: str) -> bool:
@@ -197,11 +209,11 @@ async def verify_patch(
             job_id=job_id,
             patch_hash=patch_hash,
             exit_code=exit_code,
-            raw_output=raw_output,
+            raw_output=sanitize_log(raw_output),
             report_json_str=report_json_str,
             duration_ms=duration_ms,
             timed_out=timed_out,
-            runner_error=runner_error,
+            runner_error=sanitize_log(runner_error) if runner_error else None,
         )
 
     finally:
