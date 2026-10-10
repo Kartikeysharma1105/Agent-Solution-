@@ -102,7 +102,9 @@ async def verify_patch(
     lab_app_src = base_dir / "lab" / "app"
     protected_tests_src = base_dir / "protected_tests"
 
-    temp_dir = tempfile.mkdtemp(prefix=f"sentinel_{job_id}_")
+    tmp_root = base_dir / ".tmp"
+    tmp_root.mkdir(parents=True, exist_ok=True)
+    temp_dir = tempfile.mkdtemp(dir=str(tmp_root), prefix=f"sentinel_{job_id}_")
     container_id = f"sentinel_run_{uuid.uuid4().hex[:10]}"
 
     try:
@@ -164,6 +166,8 @@ async def verify_patch(
             "--security-opt", "no-new-privileges",
             "-e", "VERIFICATION_REPORT_PATH=/workspace/report/test_report.json",
             "-e", "PYTHONPATH=/workspace",
+            "-e", "PYTHONDONTWRITEBYTECODE=1",
+            "-e", "PYTHONUNBUFFERED=1",
             "-v", f"{app_dest}:/workspace/verification/lab/app:rw",
             "-v", f"{tests_dest}:/workspace/verification/protected_tests:ro",
             "-v", f"{report_dir}:/workspace/report:rw",

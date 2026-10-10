@@ -1,7 +1,7 @@
 # Restricted Disposable Lab Environment for SENTINEL-X Verification (Layer 5)
 FROM python:3.11-slim
 
-# Install system dependencies for patch application
+# Install minimal system dependencies for patch application
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     patch \
@@ -17,8 +17,10 @@ RUN useradd -m -u 1001 sandboxuser
 WORKDIR /workspace
 RUN chown -R sandboxuser:sandboxuser /workspace
 
-# Python path
+# Environment configuration
 ENV PYTHONPATH=/workspace
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
 # Run as non-root unprivileged user
 USER sandboxuser
