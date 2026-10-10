@@ -1,13 +1,14 @@
 """Patch integrity and safety validation for SENTINEL-X Verification (Layer 5).
 
 Enforces:
-1. Unified-diff syntax only.
-2. Changes restricted ONLY to authorized 'app/access.py'.
-3. Protection of tests, runners, Dockerfiles, and configurations.
-4. Prevention of path traversal, absolute paths, binary patches, and file deletions/renames.
-5. Maximum patch size enforcement (32 KB limit).
-6. Exact SHA-256 byte hashing and verification (raw hex or 'sha256:<hex>' format).
-7. Prohibits malicious code patterns (e.g. os.system, subprocess, eval, test evasion).
+1. Unified-diff syntax only with valid hunk headers.
+2. Canonical UTF-8 encoding with UNIX line endings only (rejects CRLF and null bytes).
+3. Changes restricted ONLY to authorized 'app/access.py' (max 1 changed file).
+4. Protection of tests, runners, Dockerfiles, configurations, and hidden directories.
+5. Prevention of path traversal, absolute paths, binary patches, symlinks, deletions, and renames.
+6. Maximum patch size enforcement (32 KB limit).
+7. Exact SHA-256 byte hashing and verification (raw hex or 'sha256:<hex>' format).
+8. Deep static AST/regex scanning for forbidden syscalls, evasion, and dangerous primitives.
 """
 
 from __future__ import annotations
@@ -26,6 +27,7 @@ class PatchValidator:
     """Validates candidate patch diffs against strict safety policies."""
 
     MAX_PATCH_BYTES = 32768  # 32 KB limit matching backend policy
+    MAX_CHANGED_FILES = 1
 
     # Authorized target files that an untrusted AI patch may modify
     ALLOWED_TARGET_FILES = {
@@ -60,14 +62,21 @@ class PatchValidator:
         re.compile(r".*evaluator.*"),
         re.compile(r".*\.env.*"),
         re.compile(r"^\.git/.*"),
+        re.compile(r"^\.tmp/.*"),
+        re.compile(r"^\.pytest_cache/.*"),
     ]
 
-    # Forbidden added code patterns (dangerous syscalls or test evasions)
+    # Forbidden added code patterns (dangerous syscalls, evasions, dynamic code execution)
     FORBIDDEN_CODE_PATTERNS = [
         (re.compile(r"\bos\.system\s*\("), "Forbidden call to os.system detected"),
         (re.compile(r"\bsubprocess\b"), "Forbidden subprocess execution detected"),
         (re.compile(r"\beval\s*\("), "Forbidden call to eval detected"),
         (re.compile(r"\bexec\s*\("), "Forbidden call to exec detected"),
+        (re.compile(r"\b__import__\s*\("), "Forbidden call to __import__ detected"),
+        (re.compile(r"\bimportlib\b"), "Forbidden dynamic importlib module detected"),
+        (re.compile(r"\b__builtins__\b"), "Forbidden __builtins__ access detected"),
+        (re.compile(r"\bshutil\.rmtree\s*\("), "Forbidden call to shutil.rmtree detected"),
+        (re.compile(r"\bsocket\s*\."), "Forbidden network socket operations detected"),
         (re.compile(r"\bpytest\.skip"), "Forbidden test skip directive detected"),
         (re.compile(r"@pytest\.mark\.skip"), "Forbidden test skip decorator detected"),
     ]
@@ -75,6 +84,8 @@ class PatchValidator:
     _DIFF_HEADER_REGEX = re.compile(r"^diff --git a/(\S+) b/(\S+)$", re.MULTILINE)
     _OLD_FILE_REGEX = re.compile(r"^--- (?:a/)?([^\s\t\n]+)", re.MULTILINE)
     _NEW_FILE_REGEX = re.compile(r"^\+\+\+ (?:b/)?([^\s\t\n]+)", re.MULTILINE)
+    _HUNK_HEADER_REGEX = re.compile(r"^@@ -\d+(?:,\d+)? \+\d+(?:,\d+)? @@", re.MULTILINE)
+    _SAFE_PATH_REGEX = re.compile(r"^[a-zA-Z0-9_./-]+$")
 
     @staticmethod
     def compute_hash(patch_content: str | bytes) -> str:
@@ -118,14 +129,22 @@ class PatchValidator:
                 f"Patch exceeds maximum permitted size ({len(patch_bytes)} > {cls.MAX_PATCH_BYTES} bytes)."
             )
 
+        # Enforce canonical UNIX newlines and valid UTF-8 encoding
+        if "\x00" in patch_text or "\r" in patch_text:
+            raise PatchValidationError("Unsupported patch encoding: null bytes and CRLF line endings are forbidden.")
+
         # Check for binary diffs or prohibited git file operations
-        if "\x00" in patch_text or any(marker in patch_text for marker in cls.FORBIDDEN_MARKERS):
+        if any(marker in patch_text for marker in cls.FORBIDDEN_MARKERS):
             raise PatchValidationError("Binary patches are strictly forbidden.")
 
         # Hash verification
         if expected_hash is not None:
             if not cls.verify_hash(patch_text, expected_hash):
                 raise PatchValidationError("Patch hash mismatch: computed hash does not match expected approval hash.")
+
+        # Hunk header verification
+        if not cls._HUNK_HEADER_REGEX.search(patch_text):
+            raise PatchValidationError("Invalid unified diff: missing valid hunk headers (@@ -... +... @@).")
 
         # Extract target paths
         paths: Set[str] = set()
@@ -149,8 +168,12 @@ class PatchValidator:
             if cleaned.startswith("a/") or cleaned.startswith("b/"):
                 cleaned = cleaned[2:]
 
+            # Path syntax validation
+            if not cls._SAFE_PATH_REGEX.match(cleaned):
+                raise PatchValidationError(f"Invalid path characters detected in target path: '{path}'")
+
             # Security checks: traversal and absolute paths
-            if ".." in cleaned.split("/") or cleaned.startswith("/"):
+            if ".." in cleaned.split("/") or cleaned.startswith("/") or "\\" in cleaned:
                 raise PatchValidationError(f"Path traversal or absolute path detected: '{path}'")
 
             # Check protected patterns
@@ -165,6 +188,13 @@ class PatchValidator:
                 )
 
             cleaned_paths.append(cleaned)
+
+        # Enforce max changed files limit
+        unique_targets = set(cleaned_paths)
+        if len(unique_targets) > cls.MAX_CHANGED_FILES:
+            raise PatchValidationError(
+                f"Changed file count exceeds limit: {len(unique_targets)} files modified (maximum {cls.MAX_CHANGED_FILES} allowed)."
+            )
 
         # Inspect added lines for dangerous operations
         for line in patch_text.splitlines():
