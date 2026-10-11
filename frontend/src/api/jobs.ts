@@ -2,7 +2,7 @@ import { request } from "./client";
 import type { Evidence, Finding, Job, Patch, VerificationResult, WorkflowEvent } from "./types";
 
 type BackendJob = { id: string; status: string; finding?: Finding; attempt?: number; created_at?: string; updated_at?: string; [key: string]: unknown };
-type BackendEvent = { event_type: string; created_at: string; event?: { timestamp?: string; to?: string; attempt?: number; patch_hash?: string; reason?: string; from?: string } };
+type BackendEvent = { event_type: string; created_at: string; event?: { timestamp?: string; to?: string; attempt?: number; patch_hash?: string; reason?: string; from?: string; status?: string; feedback?: { tests_total?: number; tests_failed?: number } } };
 function normalizeJob(data: BackendJob): Job {
   if (!data.id) throw new Error("Backend returned a job without an ID.");
   return { ...data, job_id: data.id } as Job;
@@ -18,10 +18,13 @@ function normalizePatch(data: Patch): Patch {
 }
 function normalizeEvent(data: BackendEvent): WorkflowEvent {
   const event = data.event || {};
+  const summary = data.event_type === "REFLECTION_STARTED" && event.feedback
+    ? `Agent B received sanitized feedback: ${event.feedback.tests_failed} of ${event.feedback.tests_total} tests failed.`
+    : data.event_type === "REFLECTION_COMPLETED" ? "Agent B revision guidance validated for the next proposal."
+    : data.event_type === "VERIFICATION_COMPLETED" && event.status ? `Docker verdict: ${event.status}.`
+    : event.reason || (event.to ? `${event.from || "New finding"} → ${event.to}` : data.event_type.replaceAll("_", " "));
   return { timestamp: event.timestamp || data.created_at, event_type: event.to || data.event_type,
-    attempt: event.attempt, patch_hash: event.patch_hash,
-    summary: event.reason || (event.to ? `${event.from || "New finding"} → ${event.to}` : data.event_type.replaceAll("_", " ")),
-    details: data };
+    attempt: event.attempt, patch_hash: event.patch_hash, summary, details: data };
 }
 export function verificationFromEvidence(evidence: Evidence): VerificationResult | null {
   const runs = evidence.verification_runs as Array<{ status: string; patch_hash: string; result: VerificationResult }> | undefined;

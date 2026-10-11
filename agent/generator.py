@@ -26,11 +26,6 @@ def generate_patch(finding: dict, source_context: dict[str, str], attempt: int,
     prompt = build_guard_prompt(context, attempt, revision_guidance)
     try:
         raw = provider.generate(prompt, format_schema=GUARD_SCHEMA)
-        try:
-            from pathlib import Path
-            Path("local-audit/last_generator_raw.json").write_text(raw, encoding="utf-8")
-        except Exception:
-            pass
         root_cause, explanation, guard_code = parse_guard_response(raw)
         path, source = next(iter(context["source_context"].items()))
         patch_text = build_guard_diff(source, path, guard_code)

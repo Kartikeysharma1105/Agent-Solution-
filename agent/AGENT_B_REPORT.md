@@ -2,7 +2,7 @@
 
 ## Phase 4 backend contract, inspected read-only
 
-The integrated backend at `/home/master-k/Desktop/agent /Agent-Solution--feat-verification/` is accessible. No files in that checkout were edited. `backend/services/agent_adapter.py` calls a configured public `agent.*` callable synchronously as:
+The integrated backend at `<local-path> /Agent-Solution--feat-verification/` is accessible. No files in that checkout were edited. `backend/services/agent_adapter.py` calls a configured public `agent.*` callable synchronously as:
 
 ```python
 propose_patch(finding: dict, source_context: dict[str, str],

@@ -17,7 +17,7 @@ class PlannerError(ValueError):
 
 @lru_cache(maxsize=1)
 def _observer() -> NeatlogsObserver:
-    return NeatlogsObserver()
+    return NeatlogsObserver(api_key="")  # Legacy names are outside the approved nine-event scope.
 
 
 def propose_patch(

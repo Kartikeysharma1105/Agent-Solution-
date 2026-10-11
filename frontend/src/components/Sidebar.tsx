@@ -1,7 +1,8 @@
 import { NavLink } from "react-router-dom";
-import { Activity, FileSearch, LayoutDashboard, ShieldCheck, ScrollText, Crosshair } from "lucide-react";
+import { Activity, FileSearch, LayoutDashboard, ShieldCheck, ScrollText, Crosshair, FolderOpen } from "lucide-react";
 const links = [
   { to: "/", label: "Overview", icon: LayoutDashboard, end: true },
+  { to: "/projects", label: "Projects", icon: FolderOpen },
   { to: "/findings", label: "Findings", icon: FileSearch },
   { to: "/investigation", label: "Investigation", icon: Crosshair },
   { to: "/verification", label: "Verification", icon: ShieldCheck },

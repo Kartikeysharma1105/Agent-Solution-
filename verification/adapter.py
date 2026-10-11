@@ -77,6 +77,8 @@ def verify_backend_patch(
     source_revision = _extract_field(request, "source_revision")
     profile = _extract_field(request, "verification_profile")
     run_id = _extract_field(request, "run_id")
+    project_id = _extract_field(request, "project_id", None)
+    source_root = _extract_field(request, "source_root", None)
 
     if not all(isinstance(value, str) and value for value in
                (job_id, patch_id, patch_text, patch_hash, approval_id)):
@@ -88,7 +90,10 @@ def verify_backend_patch(
         approval_verifier, job_id, patch_id, patch_hash, approval_id)
     if not approval_check(patch_hash, approval_id):
         return _error("Approval validation failed: unverified or invalid approval reference.")
-    if target_app_id != "bola-demo-v1":
+    if project_id:
+        if target_app_id != project_id or not re.fullmatch(r"project-[0-9a-f]{32}", project_id) or not source_root:
+            return _error("Policy rejected: invalid project binding.")
+    elif target_app_id != "bola-demo-v1":
         return _error("Policy rejected: unauthorized target_app_id.")
     try:
         PatchValidator.validate_patch(patch_text, patch_hash)
@@ -103,7 +108,7 @@ def verify_backend_patch(
 
     from backend.manifest import TARGET_MANIFEST
     base_dir = Path(__file__).resolve().parent
-    lab_root = base_dir / "lab"
+    lab_root = Path(source_root) if project_id else base_dir / "lab"
     protected_root = base_dir / "protected_tests"
     try:
         actual_revision = TARGET_MANIFEST.source_revision(lab_root, protected_root)
@@ -118,7 +123,7 @@ def verify_backend_patch(
         approval_id=approval_id, patch_id=patch_id,
         source_revision=source_revision, run_id=run_id,
         attempt=attempt, verification_profile=profile,
-        timeout_seconds=30,
+        timeout_seconds=30, source_root=str(lab_root) if project_id else None,
     )
     try:
         result = _run_async(verify_patch(internal_req, approval_check,
@@ -145,7 +150,11 @@ def verify_backend_patch(
                         result.tests_total > 0 and
                         result.tests_passed + result.tests_failed == result.tests_total and
                         result.tests_collected == result.tests_total)
-        complete = (result.test_suite_id == profile and
+        actual_cases = list(result.test_results or [])
+        case_counts_match = (len(actual_cases) == result.tests_total and
+                             sum(case.get("outcome") == "passed" for case in actual_cases) == result.tests_passed and
+                             sum(case.get("outcome") == "failed" for case in actual_cases) == result.tests_failed)
+        complete = (result.test_suite_id == profile and case_counts_match and
                     result.collection_complete is True and
                     result.execution_completed is True and
                     result.execution_error is None)
@@ -165,6 +174,7 @@ def verify_backend_patch(
             "tests_passed": result.tests_passed,
             "tests_failed": result.tests_failed,
             "failed_tests": list(result.failed_tests or []),
+            "test_results": list(result.test_results or []),
             "duration_ms": duration,
             "execution_error": None,
             "test_suite_id": result.test_suite_id,

@@ -8,7 +8,7 @@ const config: Record<string, { label: string; className: string; icon: typeof Ch
   VERIFYING: { label: "Verifying", className: "info", icon: LoaderCircle },
   VERIFICATION_FAILED: { label: "Verification failed", className: "danger", icon: XCircle },
   POLICY_REJECTED: { label: "Policy rejected", className: "danger", icon: ShieldAlert },
-  USER_REJECTED: { label: "Rejected by operator", className: "danger", icon: XCircle },
+  USER_REJECTED: { label: "Rejected by user", className: "danger", icon: XCircle },
   RETRY_EXHAUSTED: { label: "Retry exhausted", className: "danger", icon: XCircle },
   EXECUTION_ERROR: { label: "Execution error", className: "danger", icon: XCircle },
   FINDING_RECEIVED: { label: "Finding received", className: "muted", icon: Clock3 },

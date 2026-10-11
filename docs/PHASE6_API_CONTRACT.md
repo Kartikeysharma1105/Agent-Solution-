@@ -1,6 +1,6 @@
 # Phase 6 browser API contract (authoritative Phase 5 backend)
 
-Source: `backend/routes/*.py`, `backend/schemas.py`, `backend/workflow.py`, `backend/middleware.py`, and `backend/config.py` copied unchanged from `/home/master-k/Desktop/SENTINEL-X-FINAL/` on 2026-10-10. This document describes existing endpoints; it does not add any.
+Source: `backend/routes/*.py`, `backend/schemas.py`, `backend/workflow.py`, `backend/middleware.py`, and `backend/config.py` copied unchanged from `<local-path>` on 2026-10-10. This document describes existing endpoints; it does not add any.
 
 ## Browser security and transport
 

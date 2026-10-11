@@ -1,6 +1,6 @@
 # SENTINEL-X Phase 4 backend–verifier integration report
 
-**Status: COMPLETE for local backend–verifier integration.** This is not a production-readiness claim. Date: 2026-10-10. All work was done in `/home/master-k/Desktop/agent /Agent-Solution--feat-verification`. No GitHub operation or change to `frontend/` or `agent/` was made.
+**Status: COMPLETE for local backend–verifier integration.** This is not a production-readiness claim. Date: 2026-10-10. All work was done in `<local-path> /Agent-Solution--feat-verification`. No GitHub operation or change to `frontend/` or `agent/` was made.
 
 ## Workspace and contract audit
 

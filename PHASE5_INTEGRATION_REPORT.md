@@ -4,11 +4,11 @@ Status as of 2026-10-10: **real AI patch and Docker verification succeeded; the 
 
 ## Exact source paths and preservation
 
-- Final isolated tree: `/home/master-k/Desktop/SENTINEL-X-FINAL/`.
-- Agent A inputs: `/home/master-k/Desktop/model /sentinelx-agent-a/` and `/home/master-k/Desktop/model /sentinelx-agent-a (2)/`. `diff -qr` found them byte-identical; the first was selected. The original parser rejected Phase 4's canonical Git diff.
-- Agent B input: `/home/master-k/Desktop/model /agent/`.
-- Phase 4 backend/verifier input: `/home/master-k/Desktop/agent /Agent-Solution--feat-verification/` (the parent has a trailing space).
-- Frontend specified by the user: `/home/master-k/Desktop/model/Agent-Solution--main/frontend/`. This path, the equivalent trailing-space workspace path, and any other `frontend/` under the workspace were absent on the final check. No placeholder was created.
+- Final isolated tree: `<local-path>`.
+- Agent A inputs: `<local-path> /sentinelx-agent-a/` and `<local-path> /sentinelx-agent-a (2)/`. `diff -qr` found them byte-identical; the first was selected. The original parser rejected Phase 4's canonical Git diff.
+- Agent B input: `<local-path> /agent/`.
+- Phase 4 backend/verifier input: `<local-path> /Agent-Solution--feat-verification/` (the parent has a trailing space).
+- Frontend specified by the user: `<local-path>`. This path, the equivalent trailing-space workspace path, and any other `frontend/` under the workspace were absent on the final check. No placeholder was created.
 
 Original source folders were not modified or deleted. No GitHub operation was performed. Backend and verifier source and protected tests in the final tree remain copies of Phase 4, without security-control edits.
 
@@ -19,7 +19,7 @@ Original source folders were not modified or deleted. No GitHub operation was pe
 - Final Docker image built from unchanged `verification/Dockerfile` using `docker build -t sentinel-verification-lab:latest -f verification/Dockerfile verification/`.
 - Fixture-driven failure/revision test exercised `agent.planner:propose_patch`, backend policy, first approval, real Docker failure, sanitized reflection, fresh patch hash and required fresh approval, then real Docker success and persisted evidence. Its named fixture diffs are **not** AI output.
 - Genuine local Ollama inference with `qwen2.5-coder:7b` returned a model-authored ownership guard. Agent A validated that code, computed a canonical unified diff from the backend-authorized source, and parsed it. The backend's unchanged `AgentProposal` schema and `validate_patch` both accepted the resulting proposal. Inference duration: **244.34 seconds** on CPU. `git apply --check` against the authorized lab source passed without applying the patch.
-- The real AI proposal changes only `app/access.py` and has hash **`sha256:521d2348b20b4f32a370a0df00ee9c2c4ffad21ef18368fce2e639c0fa8abbf9`**. The user explicitly approved that exact hash. The saved genuine proposal was replayed through the backend's job creation, exact-hash human approval, and independent Docker verification. Result: **VERIFIED, 8 protected tests passed, 0 failed; backend evidence conclusion VERIFIED**. Job ID: `job-2e05bf3da8a54d639b155eee67fc64d1`. The replayed request did not perform a second LLM call; the Ollama inference and backend verification were separate executed steps. Private local evidence: `/tmp/sentinel-phase5-ai-proposal.json` and `/tmp/sentinel-phase5-real-verification.json`.
+- The real AI proposal changes only `app/access.py` and has hash **`sha256:521d2348b20b4f32a370a0df00ee9c2c4ffad21ef18368fce2e639c0fa8abbf9`**. The user explicitly approved that exact hash. The saved genuine proposal was replayed through the backend's job creation, exact-hash human approval, and independent Docker verification. Result: **VERIFIED, 8 protected tests passed, 0 failed; backend evidence conclusion VERIFIED**. Job ID: `job-<redacted-id>`. The replayed request did not perform a second LLM call; the Ollama inference and backend verification were separate executed steps. Private local evidence: `/tmp/sentinel-phase5-ai-proposal.json` and `/tmp/sentinel-phase5-real-verification.json`.
 - Neatlogs SDK **1.4.26** local Doctor passed with four local spans and flush on Python **3.12.15**. This verifies local SDK operation only.
 
 ## Implemented integration
@@ -44,7 +44,7 @@ Original source folders were not modified or deleted. No GitHub operation was pe
 
 ## Exact startup commands
 
-From `/home/master-k/Desktop/SENTINEL-X-FINAL/`:
+From `<local-path>`:
 
 ```bash
 python3.12 -m venv .venv

@@ -6,9 +6,9 @@
 
 ## A. Source discovery
 
-- Authoritative Phase 5 input: `/home/master-k/Desktop/SENTINEL-X-FINAL/`. Its backend, agent, verifier, README, and Phase 5 report were inspected. It has no Git worktree.
-- Isolated Phase 6 workspace: `/home/master-k/Desktop/SENTINEL-X-PHASE6/`. Agent, backend, verifier, scripts, and documentation were copied without `.venv`, runtime databases, caches, or secrets. Phase 5 and its database were preserved. No backend or verifier source was edited.
-- No active Developer 2 source directory or ZIP was found in `/home/master-k/Desktop/model /`, the expected `Agent-Solution--main/frontend/` path, or the accessible Desktop/Downloads locations. Two byte-identical SENTINEL-X React source directories were found in the desktop Trash: `/home/master-k/.local/share/Trash/files/sentinel-x-frontend/` and `/home/master-k/.local/share/Trash/files/sentinel-x-frontend-dark-editorial-v2(1)/sentinel-x-frontend/`. Trash metadata records their former locations under the model workspace and Downloads. Their README says they target a *planned* API contract and were not backend validated. A source-selection question is pending; neither was copied or modified. No unrelated frontend or prototype was substituted.
+- Authoritative Phase 5 input: `<local-path>`. Its backend, agent, verifier, README, and Phase 5 report were inspected. It has no Git worktree.
+- Isolated Phase 6 workspace: `<local-path>`. Agent, backend, verifier, scripts, and documentation were copied without `.venv`, runtime databases, caches, or secrets. Phase 5 and its database were preserved. No backend or verifier source was edited.
+- No active Developer 2 source directory or ZIP was found in `<local-path> /`, the expected `Agent-Solution--main/frontend/` path, or the accessible Desktop/Downloads locations. Two byte-identical SENTINEL-X React source directories were found in the desktop Trash: `<local-path>` and `<local-path>)/sentinel-x-frontend/`. Trash metadata records their former locations under the model workspace and Downloads. Their README says they target a *planned* API contract and were not backend validated. A source-selection question is pending; neither was copied or modified. No unrelated frontend or prototype was substituted.
 - The candidate uses React 18, TypeScript 5.6, Vite 6, React Router, Tailwind, and lucide-react. It has no test or lint script. Its central API client currently lacks `X-Operator-Token`, times out all calls after 15 seconds, and expects several response fields that differ from Phase 5. This is a read-only assessment, not an integrated build result.
 - System `node`/`npm` were not on PATH; bundled Node 24.19.0 and pnpm 11.25.0 are available through the Codex workspace dependency runtime. Docker 29.7.2 was available. Host `python3` is 3.14.4; the copied Phase 5 environment uses Python 3.12.
 
@@ -27,7 +27,7 @@ Created the isolated workspace, this report, and the API contract document. No f
 
 ## D. Test evidence
 
-- Copied Phase 5 baseline in `/home/master-k/Desktop/SENTINEL-X-PHASE6/`: `PYTHONDONTWRITEBYTECODE=1 /home/master-k/Desktop/SENTINEL-X-FINAL/.venv/bin/python -m pytest agent/tests backend/tests verification/tests -q -p no:cacheprovider --tb=short` → **178 passed, 0 failed, 0 skipped, 32 subtests passed**, 9 non-failing warnings, 105.54 seconds. This includes existing real Docker verifier tests.
+- Copied Phase 5 baseline in `<local-path>`: `PYTHONDONTWRITEBYTECODE=1 <local-path> -m pytest agent/tests backend/tests verification/tests -q -p no:cacheprovider --tb=short` → **178 passed, 0 failed, 0 skipped, 32 subtests passed**, 9 non-failing warnings, 105.54 seconds. This includes existing real Docker verifier tests.
 - Frontend dependency install, TypeScript, build, unit tests, browser testing, live frontend-to-backend requests, and a full browser-driven AI workflow: **not run** because no Developer 2 source has been confirmed.
 - No new Ollama inference or exact-hash approval was performed in Phase 6. The Phase 5 report separately documents its earlier genuine AI proposal and approved Docker verdict; those results are not presented as a Phase 6 browser result.
 

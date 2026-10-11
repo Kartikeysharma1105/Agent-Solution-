@@ -3,20 +3,27 @@
 import json
 import hashlib
 from datetime import datetime, timedelta, timezone
+from dataclasses import replace
+from pathlib import Path
 from queue import Empty, Queue
+from time import monotonic
 import re
 import sqlite3
 from threading import Thread
 from typing import Any
 from uuid import uuid4
 
+from agent.reflection import build_revision_guidance
+
 from .approvals import approval_is_active, require_operator
+from .auth import principal, identity_kind
 from .config import Settings
 from .database import Database, utc_now
 from .middleware import correlation_id
+from .lifecycle_telemetry import LifecycleTelemetry
 from .models import Status, TRANSITIONS, WorkflowError
 from .manifest import TARGET_MANIFEST
-from .policy import patch_hash, validate_patch, validate_target
+from .policy import AUTHORIZED_TARGET, patch_hash, validate_patch, validate_target
 from .schemas import AgentProposal, ApprovalRequest, Finding, FindingRequest, VerificationResult
 from pydantic import ValidationError
 from .services.agent_adapter import AgentAdapter, bounded_source_context
@@ -73,10 +80,46 @@ class Workflow:
         self.agent = agent
         self.verifier = verifier
         self.instance_id = _id("instance")
+        self.telemetry = LifecycleTelemetry()
 
-    def _source_revision(self) -> str:
+    def _telemetry(self, name: str, job_id: str | None = None,
+                   project_id: str | None = None, run_id: str | None = None,
+                   **fields: object) -> None:
+        """Optional telemetry cannot affect remediation or the security verdict."""
         try:
-            return TARGET_MANIFEST.source_revision(self.settings.source_root,
+            key = project_id or (self._project_id(job_id) if job_id else None) or job_id
+            if key is None:
+                return
+            if self.telemetry.mode == "off":
+                return
+            with self.db.transaction() as db:
+                correlation = self._opaque_telemetry_id(db, "scope:" + key)
+                opaque_run = self._opaque_telemetry_id(db, "run:" + run_id) if run_id else None
+            safe = {"correlation_id": correlation, **fields}
+            if opaque_run is not None:
+                safe["run_id"] = opaque_run
+            self.telemetry.emit(name, **safe)
+        except Exception:
+            pass
+
+    @staticmethod
+    def _opaque_telemetry_id(db: sqlite3.Connection, resource_key: str) -> str:
+        db.execute("INSERT OR IGNORE INTO telemetry_ids VALUES (?, ?)",
+                   (resource_key, uuid4().hex))
+        return db.execute("SELECT opaque_id FROM telemetry_ids WHERE resource_key = ?",
+                          (resource_key,)).fetchone()["opaque_id"]
+
+    def _project_id(self, job_id: str) -> str | None:
+        with self.db.read() as db:
+            row = db.execute("SELECT project_id FROM project_jobs WHERE job_id = ?", (job_id,)).fetchone()
+        return row["project_id"] if row else None
+
+    def _source_root(self, project_id: str | None = None) -> Path:
+        return self.settings.project_root / project_id / "source" if project_id else self.settings.source_root
+
+    def _source_revision(self, project_id: str | None = None) -> str:
+        try:
+            return TARGET_MANIFEST.source_revision(self._source_root(project_id),
                                                    self.settings.protected_tests_root)
         except (OSError, ValueError) as error:
             raise WorkflowError("authorized source is unavailable", 503, "SOURCE_UNAVAILABLE") from error
@@ -89,7 +132,7 @@ class Workflow:
 
     def _require_current_source(self, db: sqlite3.Connection, job_id: str) -> dict[str, Any]:
         binding = self._binding(db, job_id)
-        if binding["source_revision"] != self._source_revision():
+        if binding["source_revision"] != self._source_revision(self._project_id(job_id)):
             raise WorkflowError("target source revision changed", code="STALE_SOURCE_REVISION")
         return binding
 
@@ -97,6 +140,13 @@ class Workflow:
         job = _row(db.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone())
         if not job:
             raise WorkflowError("job not found", 404, "JOB_NOT_FOUND")
+        if identity_kind.get() == "DEMO_SHARED_TOKEN":
+            if db.execute("SELECT 1 FROM project_jobs WHERE job_id = ?", (job_id,)).fetchone():
+                raise WorkflowError("job not found", 404, "JOB_NOT_FOUND")
+        if identity_kind.get() == "USER_SESSION":
+            owner = db.execute("SELECT p.owner_id FROM project_jobs pj JOIN projects p ON p.id = pj.project_id WHERE pj.job_id = ?", (job_id,)).fetchone()
+            if owner is None or owner["owner_id"] != principal.get():
+                raise WorkflowError("job not found", 404, "JOB_NOT_FOUND")
         return job
 
     def _current_patch(self, db: sqlite3.Connection, job: dict[str, Any]) -> dict[str, Any]:
@@ -132,11 +182,22 @@ class Workflow:
         job["version"] += 1
 
     def create_job(self, request: FindingRequest) -> dict[str, str]:
-        if not validate_target(request.target_app_id):
+        project_id = request.target_app_id if request.target_app_id.startswith("project-") else None
+        if project_id:
+            if identity_kind.get() != "USER_SESSION":
+                raise WorkflowError("user session required", 401, "AUTH_REQUIRED")
+            with self.db.read() as db:
+                project = db.execute("SELECT status FROM projects WHERE id = ? AND owner_id = ?",
+                                     (project_id, principal.get())).fetchone()
+            if project is None:
+                raise WorkflowError("project not found", 404, "PROJECT_NOT_FOUND")
+            if project["status"] != "SUPPORTED_BOLA_CONTRACT":
+                raise WorkflowError("project does not match the supported BOLA contract", 422, "UNSUPPORTED_PROJECT")
+        elif not validate_target(request.target_app_id) or identity_kind.get() == "USER_SESSION":
             raise WorkflowError("unauthorized target_app_id", 422, "UNAUTHORIZED_TARGET")
-        if request.finding.file_path != "app/access.py":
-            raise WorkflowError("finding path is not authorized", 422, "UNAUTHORIZED_FINDING_PATH")
-        revision = self._source_revision()
+        if request.finding.file_path != "app/access.py" or request.finding.type != "BROKEN_OBJECT_LEVEL_AUTHORIZATION":
+            raise WorkflowError("finding is outside supported BOLA contract", 422, "UNAUTHORIZED_FINDING_PATH")
+        revision = self._source_revision(project_id)
         job_id = _id("job")
         now = utc_now()
         with self.db.transaction() as db:
@@ -147,8 +208,11 @@ class Workflow:
                         Status.FINDING_RECEIVED.value, 0, now, now))
             db.execute("INSERT INTO job_bindings VALUES (?, ?, ?)",
                        (job_id, revision, TARGET_MANIFEST.verification_profile))
+            if project_id:
+                db.execute("INSERT INTO project_jobs VALUES (?, ?)", (job_id, project_id))
             self._event(db, job_id, "STATE_TRANSITION",
                         {"from": None, "to": Status.FINDING_RECEIVED.value})
+        self._telemetry("finding.submitted", job_id, attempt=0, success=True)
         return {"job_id": job_id, "status": Status.FINDING_RECEIVED.value}
 
     def plan(self, job_id: str, feedback: dict[str, Any] | None = None) -> None:
@@ -168,15 +232,44 @@ class Workflow:
             finding = Finding.model_validate(json.loads(job["finding_json"]))
             attempt = job["attempt"]
             target = job["target_app_id"]
+            if attempt:
+                # Only counts and trusted test identifiers enter Agent B; persist
+                # the exact sanitized feedback before requesting a revision.
+                self._event(db, job_id, "REFLECTION_STARTED",
+                            {"attempt": attempt, "feedback": feedback})
 
         try:
-            context = bounded_source_context(self.settings, finding)
-            proposal = _bounded_call(
-                lambda: self.agent.propose_patch(finding.model_dump(), context, attempt, feedback),
-                self.settings.planner_timeout_seconds)
-            proposal = AgentProposal.model_validate(proposal)
-            policy = validate_patch(target, proposal.patch_text, proposal.files_changed,
-                                    attempt, self.settings)
+            if attempt:
+                build_revision_guidance(feedback, attempt)
+                with self.db.transaction() as db:
+                    self._event(db, job_id, "REFLECTION_COMPLETED",
+                                {"attempt": attempt, "outcome": "GUIDANCE_VALIDATED"})
+            context = bounded_source_context(replace(self.settings, source_root=self._source_root(self._project_id(job_id))), finding)
+            inference_start = monotonic()
+            self._telemetry("agent.inference.started", job_id, attempt=attempt)
+            inference_success = False
+            try:
+                proposal = _bounded_call(
+                    lambda: self.agent.propose_patch(finding.model_dump(), context, attempt, feedback),
+                    self.settings.planner_timeout_seconds)
+                proposal = AgentProposal.model_validate(proposal)
+                inference_success = True
+            finally:
+                self._telemetry("agent.inference.completed", job_id, attempt=attempt,
+                                success=inference_success,
+                                duration_ms=min(3_600_000, int((monotonic() - inference_start) * 1000)))
+            self._telemetry("patch.generated", job_id, attempt=attempt, success=True)
+            validation_start = monotonic()
+            try:
+                policy = validate_patch(AUTHORIZED_TARGET if self._project_id(job_id) else target, proposal.patch_text, proposal.files_changed,
+                                        attempt, self.settings)
+            except Exception:
+                self._telemetry("patch.validation.completed", job_id, attempt=attempt,
+                                success=False, duration_ms=min(3_600_000, int((monotonic() - validation_start) * 1000)))
+                raise
+            self._telemetry("patch.validation.completed", job_id, attempt=attempt,
+                            success=policy.allowed,
+                            duration_ms=min(3_600_000, int((monotonic() - validation_start) * 1000)))
             with self.db.transaction() as db:
                 job = self._job(db, job_id)
                 if job["status"] != Status.PLANNING.value or job["attempt"] != attempt:
@@ -202,8 +295,14 @@ class Workflow:
             self._planning_error(job_id, "malformed planner proposal")
         except TimeoutError:
             self._planning_error(job_id, "planner timed out")
-        except Exception:
-            self._planning_error(job_id, "planner integration failed")
+        except Exception as exc:
+            # GenerationError may wrap provider or parser failures. Persist only
+            # a fixed category: exception messages can contain model output.
+            category = getattr(exc, "failure_type", None)
+            safe = {"ProviderTimeoutError", "ProviderError", "EditError", "ParseError"}
+            if category not in safe:
+                category = type(exc).__name__ if type(exc).__name__ in {"PlannerError", "RuntimeError"} else "GenerationError"
+            self._planning_error(job_id, f"planner integration failed ({category})")
 
     def _planning_error(self, job_id: str, reason: str) -> None:
         with self.db.transaction() as db:
@@ -219,9 +318,14 @@ class Workflow:
 
     def list_jobs(self, limit: int = 100, offset: int = 0) -> list[dict[str, Any]]:
         with self.db.read() as db:
-            jobs = [dict(row) for row in db.execute(
-                "SELECT * FROM jobs ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?",
-                (limit, offset))]
+            if identity_kind.get() == "USER_SESSION":
+                jobs = [dict(row) for row in db.execute(
+                    "SELECT j.* FROM jobs j JOIN project_jobs pj ON pj.job_id = j.id JOIN projects p ON p.id = pj.project_id WHERE p.owner_id = ? ORDER BY j.created_at DESC, j.id DESC LIMIT ? OFFSET ?",
+                    (principal.get(), limit, offset))]
+            else:
+                jobs = [dict(row) for row in db.execute(
+                    "SELECT j.* FROM jobs j LEFT JOIN project_jobs pj ON pj.job_id = j.id WHERE pj.job_id IS NULL ORDER BY j.created_at DESC, j.id DESC LIMIT ? OFFSET ?",
+                    (limit, offset))]
         for job in jobs:
             job["finding"] = json.loads(job.pop("finding_json"))
         return jobs
@@ -239,7 +343,7 @@ class Workflow:
             job = self._job(reader, job_id)
             binding = self._binding(reader, job_id)
         try:
-            current = self._source_revision()
+            current = self._source_revision(self._project_id(job_id))
         except WorkflowError:
             current = None
         if current == binding["source_revision"]:
@@ -259,7 +363,12 @@ class Workflow:
 
     def decide(self, job_id: str, request: ApprovalRequest,
                supplied_token: str | None) -> dict[str, Any]:
-        operator = require_operator(self.settings, supplied_token)
+        if identity_kind.get() == "USER_SESSION":
+            operator = principal.get()
+            approval_kind = "USER_SESSION"
+        else:
+            operator = require_operator(self.settings, supplied_token)
+            approval_kind = "DEMO_SHARED_TOKEN"
         self._invalidate_if_stale(job_id)
         with self.db.transaction() as db:
             job = self._job(db, job_id)
@@ -281,19 +390,21 @@ class Workflow:
                        (approval_id, job_id, patch["id"], request.patch_hash,
                         job["attempt"], request.decision, operator, now))
             db.execute("INSERT INTO approval_bindings VALUES (?, ?, ?, ?)",
-                       (approval_id, job["target_app_id"], binding["source_revision"], "DEMO_SHARED_TOKEN"))
+                       (approval_id, job["target_app_id"], binding["source_revision"], approval_kind))
             self._event(db, job_id, "APPROVAL_DECIDED",
                         {"approval_id": approval_id, "patch_id": patch["id"],
                          "attempt": job["attempt"], "patch_hash": request.patch_hash,
                          "decision": request.decision,
-                         "approved_by": operator, "identity_kind": "DEMO_SHARED_TOKEN",
+                         "approved_by": operator, "identity_kind": approval_kind,
                          "source_revision": binding["source_revision"]})
             self._transition(db, job, Status.VERIFYING if request.decision == "APPROVE"
                              else Status.USER_REJECTED)
+        self._telemetry("approval.recorded", job_id, attempt=job["attempt"],
+                        success=request.decision == "APPROVE")
         return {"approval_id": approval_id, "job_id": job_id, "patch_id": patch["id"],
                 "attempt": job["attempt"], "patch_hash": request.patch_hash,
                 "decision": request.decision,
-                "approved_by": operator, "identity_kind": "DEMO_SHARED_TOKEN",
+                "approved_by": operator, "identity_kind": approval_kind,
                 "source_revision": binding["source_revision"], "created_at": now}
 
     def _renew_lease(self, run_id: str, lease_token: str) -> None:
@@ -340,7 +451,11 @@ class Workflow:
             verify_request = VerificationRequest(job_id, job["target_app_id"], patch["id"],
                                                  patch["patch_text"], patch["patch_hash"], approval["id"],
                                                  job["attempt"], binding["source_revision"],
-                                                 binding["verification_profile"], run_id)
+                                                 binding["verification_profile"], run_id,
+                                                 self._project_id(job_id), str(self._source_root(self._project_id(job_id))))
+
+        self._telemetry("verification.started", job_id, run_id=run_id, attempt=job["attempt"])
+        verification_start = monotonic()
 
         def approval_verifier(check_job: str, check_patch: str,
                               check_hash: str, check_approval: str) -> bool:
@@ -364,6 +479,11 @@ class Workflow:
             result_data = result.model_dump()
             result_data["failed_tests"] = [re.sub(r"[^A-Za-z0-9_./:\-\[\]]", "_", name)[:128]
                                            for name in result_data["failed_tests"]]
+            result_data["test_results"] = [
+                {"name": re.sub(r"[^A-Za-z0-9_./:\-\[\]]", "_", item.get("name", ""))[:128],
+                 "outcome": item.get("outcome", "")}
+                for item in result_data.get("test_results", [])[:100]
+                if item.get("outcome") in ("passed", "failed", "error", "skipped")]
             if result_data["execution_error"]:
                 result_data["execution_error"] = "trusted verifier reported an execution error"
             status = (Status.VERIFIED if result.status == "PASSED" else
@@ -389,7 +509,7 @@ class Workflow:
                 raise WorkflowError("late verification result discarded", code="LEASE_LOST")
             if status == Status.VERIFIED:
                 try:
-                    current_revision = self._source_revision()
+                    current_revision = self._source_revision(self._project_id(job_id))
                 except WorkflowError:
                     current_revision = None
                 if current_revision != binding["source_revision"]:
@@ -417,6 +537,12 @@ class Workflow:
             if exhausted:
                 self._transition(db, job, Status.RETRY_EXHAUSTED)
 
+        counts = {key: result_data[key] for key in ("tests_passed", "tests_failed")
+                  if type(result_data.get(key)) is int}
+        self._telemetry("verification.completed", job_id, run_id=run_id,
+                        attempt=job["attempt"], success=status == Status.VERIFIED,
+                        duration_ms=min(3_600_000, int((monotonic() - verification_start) * 1000)),
+                        **counts)
         response = {"job_id": job_id, "patch_hash": patch["patch_hash"],
                     **result_data, "status": status.value}
         if can_retry and not exhausted:
@@ -487,13 +613,13 @@ class Workflow:
                                  approval["binding"] and
                                  approval["binding"]["target_app_id"] == job["target_app_id"] and
                                  approval["binding"]["source_revision"] == binding["source_revision"] and
-                                 approval["binding"]["identity_kind"] == "DEMO_SHARED_TOKEN"), None)
+                                 approval["binding"]["identity_kind"] == ("USER_SESSION" if self._project_id(job_id) else "DEMO_SHARED_TOKEN")), None)
         current_run = next((run for run in runs if current and
                             run["patch_id"] == current["id"] and
                             run["patch_hash"] == current["patch_hash"] and
                             run["status"] == Status.VERIFIED.value), None)
         try:
-            source_current = bool(binding and self._source_revision() == binding["source_revision"])
+            source_current = bool(binding and self._source_revision(self._project_id(job_id)) == binding["source_revision"])
         except WorkflowError:
             source_current = False
         verified = bool(job["status"] == Status.VERIFIED.value and source_current and binding and current and
@@ -527,7 +653,7 @@ class Workflow:
                 "integrity_issues": integrity_issues,
                 "conclusion": "VERIFIED" if verified else "NOT_VERIFIED",
                 "limitations": ["Verification is limited to required tests actually reported by the trusted verifier.",
-                                "Local single-operator mode is not enterprise authentication.",
+                                "Local accounts and sessions are intended for controlled deployments.",
                                 "In-process execution has no distributed-worker durability."]}
 
     def recover_interrupted(self) -> None:

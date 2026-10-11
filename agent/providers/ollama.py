@@ -12,8 +12,8 @@ class OllamaProvider:
         self.base_url = (base_url or os.getenv("SENTINEL_OLLAMA_URL", "http://127.0.0.1:11434")).rstrip("/")
         self.model = model or os.getenv("SENTINEL_MODEL", "qwen2.5-coder:7b")
         self.connect_timeout = connect_timeout or float(os.getenv("SENTINEL_CONNECT_TIMEOUT", "3"))
-        self.inference_timeout = inference_timeout or float(os.getenv("SENTINEL_INFERENCE_TIMEOUT", "180"))
-        self.retries = retries if retries is not None else int(os.getenv("SENTINEL_PROVIDER_RETRIES", "2"))
+        self.inference_timeout = inference_timeout or float(os.getenv("SENTINEL_INFERENCE_TIMEOUT", "280"))
+        self.retries = retries if retries is not None else int(os.getenv("SENTINEL_PROVIDER_RETRIES", "0"))
         self.max_output_chars = max_output_chars or int(os.getenv("SENTINEL_MAX_OUTPUT_CHARS", "40000"))
         if not self.base_url.startswith(("http://", "https://")) or not self.model.strip():
             raise ValueError("Invalid Ollama URL or model configuration")
@@ -42,7 +42,7 @@ class OllamaProvider:
         }
         body = json.dumps({"model": self.model, "prompt": prompt, "stream": False,
                            "format": proposal_schema,
-                           "options": {"num_predict": int(os.getenv("SENTINEL_MAX_TOKENS", "3000")),
+                           "options": {"num_predict": int(os.getenv("SENTINEL_MAX_TOKENS", "350")),
                                        "repeat_penalty": 1.1,
                                        "temperature": 0}}).encode()
         req = Request(self.base_url + "/api/generate", data=body,

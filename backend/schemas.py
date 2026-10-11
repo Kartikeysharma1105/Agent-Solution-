@@ -54,6 +54,7 @@ class VerificationResult(StrictModel):
     tests_passed: int = Field(ge=0, le=100_000)
     tests_failed: int = Field(ge=0, le=100_000)
     failed_tests: list[Annotated[str, Field(max_length=256)]] = Field(default_factory=list, max_length=100)
+    test_results: list[dict[str, str]] = Field(default_factory=list, max_length=100)
     duration_ms: int = Field(ge=0, le=86_400_000)
     execution_error: str | None = Field(default=None, max_length=500)
     test_suite_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_.:-]{1,128}$")
