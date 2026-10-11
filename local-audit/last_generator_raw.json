@@ -1,0 +1,1 @@
+{"root_cause": "missing ownership check", "explanation": "reject other owners", "guard_code": "if doc[\"owner_id\"] != requesting_user_id:\n    raise PermissionError(\"Access denied\")"}

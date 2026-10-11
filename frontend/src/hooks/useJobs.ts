@@ -1,68 +1,25 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api, unwrapList } from "../api/jobs";
 import type { Job } from "../api/types";
 
-function normalizeJobs(rawJobs: unknown): Job[] {
-  const list = unwrapList<Job>(rawJobs as Job[] | Record<string, Job[]>, "jobs");
-  return list.map((j) => {
-    const canonicalId = String(j.id || j.job_id || "");
-    return {
-      ...j,
-      id: canonicalId,
-      job_id: canonicalId,
-    };
-  });
-}
-
-export function useJobs(pollActive = true) {
+export function useJobs(pollInterval = 0) {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const isMounted = useRef(true);
-
-  const refresh = useCallback(async (showLoading = true) => {
-    if (showLoading) setLoading(true);
+  const refresh = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     setError("");
-    try {
-      const data = await api.jobs();
-      if (isMounted.current) {
-        setJobs(normalizeJobs(data));
-      }
-    } catch (e) {
-      if (isMounted.current) {
-        setError(e instanceof Error ? e.message : "Unable to load jobs from backend API");
-      }
-    } finally {
-      if (isMounted.current && showLoading) {
-        setLoading(false);
-      }
-    }
+    try { setJobs(unwrapList(await api.jobs(), "jobs")); }
+    catch (e) { setError(e instanceof Error ? e.message : "Unable to load jobs"); }
+    finally { if (!silent) setLoading(false); }
   }, []);
-
+  useEffect(() => { void refresh(); }, [refresh]);
   useEffect(() => {
-    isMounted.current = true;
-    void refresh(true);
-    return () => {
-      isMounted.current = false;
-    };
-  }, [refresh]);
-
-  // Bounded polling if any job is currently in an active state
-  useEffect(() => {
-    if (!pollActive) return;
-    const hasActiveJob = jobs.some((j) =>
-      ["FINDING_RECEIVED", "PLANNING", "VERIFYING"].includes(String(j.status))
-    );
-    if (!hasActiveJob) return;
-
-    const timer = window.setInterval(() => {
-      void refresh(false);
-    }, 2500);
-
-    return () => {
-      window.clearInterval(timer);
-    };
-  }, [jobs, pollActive, refresh]);
-
+    const hasActive = jobs.some(j => ["FINDING_RECEIVED", "PLANNING", "VERIFYING"].includes(j.status));
+    const intervalMs = pollInterval || (hasActive ? 4000 : 0);
+    if (!intervalMs) return;
+    const timer = setInterval(() => { void refresh(true); }, intervalMs);
+    return () => clearInterval(timer);
+  }, [jobs, pollInterval, refresh]);
   return { jobs, loading, error, refresh };
 }

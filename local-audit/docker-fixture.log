@@ -1,0 +1,2 @@
+{"fixture": "correct_patch.diff", "status": "VERIFIED", "tests_total": 8, "tests_passed": 8, "tests_failed": 0, "execution_error": null}
+{"fixture": "incomplete_patch.diff", "status": "VERIFICATION_FAILED", "tests_total": 8, "tests_passed": 5, "tests_failed": 3, "execution_error": null}

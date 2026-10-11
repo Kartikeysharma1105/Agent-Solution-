@@ -1,0 +1,60 @@
+................................................. [ 27%]
+......F...................F.................................... [ 62%]
+..................................................................       [100%]
+================================== FAILURES ===================================
+___________________ test_health_ingestion_listing_and_docs ____________________
+backend\tests\test_api.py:15: in test_health_ingestion_listing_and_docs
+    assert agent.calls[0][1] == {"app/access.py": "return document\n"}
+E   AssertionError: assert {'app/access....document\r\n'} == {'app/access....n document\n'}
+E     
+E     Differing items:
+E     {'app/access.py': 'return document\r\n'} != {'app/access.py': 'return document\n'}
+E     Use -v to get more diff
+_________________ test_manifest_revision_and_symlink_rejected _________________
+backend\tests\test_phase3_security.py:40: in test_manifest_revision_and_symlink_rejected
+    target.symlink_to(tmp_path / "elsewhere")
+..\..\..\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\Lib\pathlib.py:1386: in symlink_to
+    os.symlink(target, self, target_is_directory)
+E   OSError: [WinError 1314] A required privilege is not held by the client: 'C:\\Users\\Dell\\AppData\\Local\\Temp\\pytest-of-Dell\\pytest-1\\test_manifest_revision_and_sym0\\elsewhere' -> 'C:\\Users\\Dell\\AppData\\Local\\Temp\\pytest-of-Dell\\pytest-1\\test_manifest_revision_and_sym0\\source\\app\\access.py'
+============================== warnings summary ===============================
+.venv\Lib\site-packages\fastapi\testclient.py:1
+  C:\Users\Dell\Desktop\SENTINEL-X-PHASE6-20261011T034651Z-1-001\SENTINEL-X-PHASE6\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+agent\tests\test_fixture_integration.py:27
+  C:\Users\Dell\Desktop\SENTINEL-X-PHASE6-20261011T034651Z-1-001\SENTINEL-X-PHASE6\agent\tests\test_fixture_integration.py:27: PytestUnknownMarkWarning: Unknown pytest.mark.docker - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.docker
+
+backend\tests\test_verifier_integration.py:63
+  C:\Users\Dell\Desktop\SENTINEL-X-PHASE6-20261011T034651Z-1-001\SENTINEL-X-PHASE6\backend\tests\test_verifier_integration.py:63: PytestUnknownMarkWarning: Unknown pytest.mark.docker - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.docker
+
+backend\tests\test_verifier_integration.py:83
+  C:\Users\Dell\Desktop\SENTINEL-X-PHASE6-20261011T034651Z-1-001\SENTINEL-X-PHASE6\backend\tests\test_verifier_integration.py:83: PytestUnknownMarkWarning: Unknown pytest.mark.docker - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.docker
+
+verification\tests\test_advanced_hardening.py:95
+  C:\Users\Dell\Desktop\SENTINEL-X-PHASE6-20261011T034651Z-1-001\SENTINEL-X-PHASE6\verification\tests\test_advanced_hardening.py:95: PytestUnknownMarkWarning: Unknown pytest.mark.docker - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.docker
+
+verification\tests\test_advanced_hardening.py:138
+  C:\Users\Dell\Desktop\SENTINEL-X-PHASE6-20261011T034651Z-1-001\SENTINEL-X-PHASE6\verification\tests\test_advanced_hardening.py:138: PytestUnknownMarkWarning: Unknown pytest.mark.docker - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.docker
+
+verification\tests\test_backend_adapter.py:148
+  C:\Users\Dell\Desktop\SENTINEL-X-PHASE6-20261011T034651Z-1-001\SENTINEL-X-PHASE6\verification\tests\test_backend_adapter.py:148: PytestUnknownMarkWarning: Unknown pytest.mark.docker - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.docker
+
+verification\tests\test_backend_adapter.py:185
+  C:\Users\Dell\Desktop\SENTINEL-X-PHASE6-20261011T034651Z-1-001\SENTINEL-X-PHASE6\verification\tests\test_backend_adapter.py:185: PytestUnknownMarkWarning: Unknown pytest.mark.docker - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.docker
+
+verification\tests\test_backend_adapter.py:214
+  C:\Users\Dell\Desktop\SENTINEL-X-PHASE6-20261011T034651Z-1-001\SENTINEL-X-PHASE6\verification\tests\test_backend_adapter.py:214: PytestUnknownMarkWarning: Unknown pytest.mark.docker - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.docker
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED backend/tests/test_api.py::test_health_ingestion_listing_and_docs - As...
+FAILED backend/tests/test_phase3_security.py::test_manifest_revision_and_symlink_rejected
+2 failed, 176 passed, 9 warnings, 32 subtests passed in 62.02s (0:01:02)
