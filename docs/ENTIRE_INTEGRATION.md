@@ -22,8 +22,22 @@ This guide describes the integration of the official **Entire CLI** ([https://en
 
 ## 2. Prerequisites and Installation
 
-### Official CLI Installation (Linux / macOS / WSL)
-The Entire CLI should be installed from the official stable release channel into the user directory (no root/sudo required):
+### Official CLI Installation
+
+#### Windows (PowerShell)
+Install the official stable release to `%USERPROFILE%\.local\bin` using PowerShell (no administrator privileges required):
+
+```powershell
+irm https://entire.io/install.ps1 | iex
+```
+
+Verify the installation:
+```powershell
+entire version
+```
+
+#### Linux / macOS / WSL
+The Entire CLI can be installed from the official stable release channel into the user directory:
 
 ```bash
 curl -fsSL https://entire.io/install.sh | bash -s -- --channel stable
