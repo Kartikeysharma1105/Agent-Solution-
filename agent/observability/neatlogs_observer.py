@@ -55,7 +55,7 @@ class NeatlogsObserver:
             package.init(
                 api_key=key,
                 workflow_name="security-patch-generation",
-                capture_logs=True,
+                capture_logs=False,
             )
             self._sdk = package
             self.available = True

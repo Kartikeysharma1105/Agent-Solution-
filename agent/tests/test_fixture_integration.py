@@ -34,7 +34,7 @@ def test_fixture_failure_revision_requires_fresh_approval_and_real_docker(tmp_pa
                         verifier_callable="verification.adapter:verify_backend_patch",
                         verifier_timeout_seconds=120)
     client = TestClient(create_app(settings), headers={"X-Operator-Token": TOKEN})
-    assert client.get("/ready").json() == {"status": "ready"}
+    assert client.get("/ready").json()["status"] == "ready"
     calls = []
 
     def fixture_generation(finding, source_context, attempt, revision_guidance=None):
@@ -72,3 +72,9 @@ def test_fixture_failure_revision_requires_fresh_approval_and_real_docker(tmp_pa
         evidence = client.get(f"/api/jobs/{job_id}/evidence").json()
         assert evidence["conclusion"] == "VERIFIED"
         assert len(evidence["verification_runs"]) == 2
+        events = client.get(f"/api/jobs/{job_id}/events").json()
+        reflections = [event for event in events if event["event_type"].startswith("REFLECTION_")]
+        assert [event["event_type"] for event in reflections] == ["REFLECTION_STARTED", "REFLECTION_COMPLETED"]
+        assert reflections[0]["event"]["feedback"]["tests_failed"] == 3
+        assert reflections[0]["event"]["attempt"] == 1
+        assert "patch_text" not in str(reflections)

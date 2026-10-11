@@ -1,6 +1,7 @@
 """FastAPI entry point: uvicorn backend.main:app --host 127.0.0.1 --port 8000."""
 
 import logging
+import os
 from urllib.parse import urlsplit
 
 from fastapi import FastAPI, Request
@@ -9,11 +10,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from .auth import router as auth_router
 from .config import Settings
 from .database import Database
 from .middleware import ApiGuard
 from .models import WorkflowError
-from .routes import approvals, findings, jobs, verification
+from .readiness import probe
+from .routes import approvals, findings, jobs, verification, projects
 from .services.agent_adapter import AgentAdapter, ConfiguredAgentAdapter
 from .services.verification_adapter import ConfiguredVerificationAdapter, VerificationAdapter
 from .workflow import Workflow
@@ -31,11 +34,12 @@ def create_app(settings: Settings | None = None, agent: AgentAdapter | None = No
         alias = "127.0.0.1" if origin.hostname == "localhost" else "localhost"
         port = f":{origin.port}" if origin.port is not None else ""
         frontend_origins.append(f"{origin.scheme}://{alias}{port}")
-    app.add_middleware(ApiGuard, settings=settings)
+    db = Database(settings.database_path)
+    app.add_middleware(ApiGuard, settings=settings, db=db)
     app.add_middleware(CORSMiddleware, allow_origins=frontend_origins,
-                       allow_credentials=False, allow_methods=["GET", "POST"],
-                       allow_headers=["Content-Type", "X-Operator-Token"])
-    workflow = Workflow(Database(settings.database_path), settings,
+                       allow_credentials=True, allow_methods=["GET", "POST", "DELETE"],
+                       allow_headers=["Content-Type", "X-Operator-Token", "X-CSRF-Token", "X-Archive-Name"])
+    workflow = Workflow(db, settings,
                         agent or ConfiguredAgentAdapter(settings),
                         verifier or ConfiguredVerificationAdapter(settings))
     workflow.recover_interrupted()
@@ -71,20 +75,22 @@ def create_app(settings: Settings | None = None, agent: AgentAdapter | None = No
 
     @app.get("/ready", tags=["health"])
     def ready():
-        if not settings.operator_token:
-            return JSONResponse(status_code=503, content={"status": "not_ready"})
-        if isinstance(workflow.agent, ConfiguredAgentAdapter) and not settings.agent_callable:
-            return JSONResponse(status_code=503, content={"status": "not_ready"})
-        if isinstance(workflow.verifier, ConfiguredVerificationAdapter) and not settings.verifier_callable:
-            return JSONResponse(status_code=503, content={"status": "not_ready"})
-        with workflow.db.read() as db:
-            db.execute("SELECT 1").fetchone()
-        return {"status": "ready"}
+        result = probe(workflow)
+        return JSONResponse(status_code=200 if result["status"] == "ready" else 503,
+                            content=result)
 
     @app.get("/health", tags=["health"])
     def health():
         return {"status": "ok", "service": "sentinel-x-backend"}
 
+    @app.get("/api/observability/status", tags=["observability"])
+    def observability_status():
+        return {"provider": "Neatlogs", "configured": bool(os.getenv("NEATLOGS_API_KEY")),
+                "hosted_delivery_verified": False, "trace_reference": None,
+                "local_workflow_events": True}
+
+    app.include_router(auth_router)
+    app.include_router(projects.router)
     app.include_router(findings.router)
     app.include_router(jobs.router)
     app.include_router(approvals.router)

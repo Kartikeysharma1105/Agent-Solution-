@@ -22,7 +22,7 @@ The team's supplied React frontend is installed, integrated with the actual back
 - Live frontend HTTP 200 at port 5173; existing live backend health HTTP 200 at port 8000.
 - Separate browser acceptance-test frontend on port 5174, clearly labeled **Fixture integration test — prepared patch, real Docker**, against an isolated real FastAPI backend on port 8001.
 - Browser sequence: operator connection → submit BOLA finding → list actual job → open actual diff/root cause/events → approve exact hash → request real Docker verification → display **VERIFIED, 8 passed, 0 failed**, 14.912-second verifier duration → retrieve persisted evidence → disconnect.
-- Test job: `job-788b217169774cfea35be1fdae3ef24e`.
+- Test job: `job-<redacted-id>`.
 - Prepared fixture patch hash: `sha256:dc2ecd6167df9d86ace539c25560774b79a1d9feeab661dbd6c041143364db86`.
 - Displayed evidence conclusion `VERIFIED`, proposal hash integrity `VALID`, one exact-hash approval, run attestation integrity `VALID`, no integrity issues.
 - Saved directly from displayed backend evidence: `local-audit/browser-fixture-evidence.json`; screenshot: `local-audit/frontend-docker-verification.png`. The separate test database is `local-audit/browser-fixture.db`.

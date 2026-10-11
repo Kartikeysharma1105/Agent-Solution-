@@ -1,9 +1,0 @@
-{
-  "root_cause": ": The function `get_document` does not check if the requesting user owns the the document before returning it.",
-  "explanation": "This vulnerability allows unauthorized unauthorized access to documents that do not belong to the requesting user.",
-  "patch_format": "unified_diff",
-  "patch_text": "diff --git a/app/access.py b/app/access.py\n--- a/app/access.py\n+++ b/app/access.py\n@@ -33,4 +33,6 @@\n \n     # VULNERABLE IMPLEMENTATION (Broken Object-Level Authorization):\n     # Fails to enforce that doc[\"owner_id\"] == requesting_user_id before returning.\n+    if doc['owner_id'] != requesting_user_id:\n+        raise PermissionError('Ownership mismatch: requesting_user_id does not own the document document_id')\n     return dict(doc)\n",
-  "files_changed": [
-    "app/access.py"
-  ]
-}

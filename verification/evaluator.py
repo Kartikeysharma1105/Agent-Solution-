@@ -143,6 +143,7 @@ class TestResultEvaluator:
         # Extract failed test identifiers
         failed_tests: List[str] = []
         executed_test_functions: Set[str] = set()
+        test_results: List[Dict[str, str]] = []
 
         for t in tests_data:
             if not isinstance(t, dict):
@@ -151,6 +152,10 @@ class TestResultEvaluator:
             outcome = t.get("outcome")
             func_name = nodeid.split("::")[-1] if "::" in nodeid else nodeid
             executed_test_functions.add(func_name)
+            if outcome in ("passed", "failed", "error", "skipped"):
+                import re
+                safe_name = re.sub(r"[^A-Za-z0-9_./:\-\[\]]", "_", nodeid)[:128]
+                test_results.append({"name": safe_name, "outcome": outcome})
 
             if outcome in ("failed", "error"):
                 failed_tests.append(nodeid)
@@ -238,6 +243,7 @@ class TestResultEvaluator:
                 tests_passed=passed,
                 tests_failed=failed + errored,
                 failed_tests=failed_tests,
+                test_results=test_results,
                 duration_ms=duration_ms,
                 execution_error=None,
                 run_id=run_id,
@@ -257,6 +263,7 @@ class TestResultEvaluator:
             tests_passed=passed,
             tests_failed=0,
             failed_tests=[],
+            test_results=test_results,
             duration_ms=duration_ms,
             execution_error=None,
             run_id=run_id,

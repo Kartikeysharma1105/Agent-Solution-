@@ -1,6 +1,7 @@
 """Direct, configured planner integration. No implicit mock or shell execution."""
 
 from importlib import import_module
+import re
 from typing import Any, Protocol
 
 from ..config import Settings
@@ -59,4 +60,7 @@ def bounded_source_context(settings: Settings, finding: Finding) -> dict[str, st
         content = source.read(settings.max_source_bytes + 1)
     if len(content) > settings.max_source_bytes:
         raise RuntimeError("authorized source exceeds context limit")
-    return {finding.file_path: content.decode("utf-8")}
+    source_text = content.decode("utf-8")
+    if re.search(r"(?im)-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|^\s*[A-Za-z_]*(?:api_key|secret|password|credential|access_token)[A-Za-z_]*\s*=", source_text):
+        raise WorkflowError("source contains possible credentials; remove them before AI remediation", 422, "SOURCE_SECRET_DETECTED")
+    return {finding.file_path: source_text}

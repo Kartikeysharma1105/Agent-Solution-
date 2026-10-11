@@ -1,32 +1,17 @@
-# Secrets & environment
 .env
 .env.*
 !.env.example
 
-# Python
+backend/project_data/
+backend/*.db
+frontend/node_modules/
+frontend/dist/
+local-audit/
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-env/
-venv/
-.venv/
-.venv*/
-*.db
-*.db-journal
-*.sqlite3
-.pytest_cache/
 
-# Node / Frontend
-node_modules/
-dist/
-*.local
-.DS_Store
+# Entire CLI local metadata and credentials
+.entire/settings.local.json
+.entire/metadata/
+.entire/logs/
+.entire/tmp/
 
-# Temporary & Archive files
-*.zip
-.tmp/
-test_report.json
-backend/test_sentinel.db*
-backend/sentinel.db*

@@ -53,7 +53,7 @@ def approval_is_active(db: sqlite3.Connection, job_id: str, patch_id: str,
           AND a.decision = 'APPROVE' AND p.patch_hash = ?
           AND a.attempt = p.attempt AND j.attempt = p.attempt AND j.id = p.job_id
           AND j.status = 'VERIFYING' AND ab.target_app_id = j.target_app_id
-          AND ab.source_revision = jb.source_revision AND ab.identity_kind = 'DEMO_SHARED_TOKEN'
+          AND ab.source_revision = jb.source_revision AND ab.identity_kind IN ('DEMO_SHARED_TOKEN', 'USER_SESSION')
     """, (approval_id, job_id, patch_id, patch_hash, patch_hash)).fetchone()
     if row is None:
         return False

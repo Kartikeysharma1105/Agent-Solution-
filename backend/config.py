@@ -16,6 +16,7 @@ _OPERATOR = re.compile(r"^[A-Za-z0-9_.@-]{1,80}$")
 class Settings:
     database_path: Path
     source_root: Path
+    project_root: Path = Path("backend/project_data")
     protected_tests_root: Path | None = None
     environment: str = "demo"
     frontend_origin: str = "http://localhost:5173"
@@ -28,7 +29,7 @@ class Settings:
     max_changed_files: int = 1
     max_source_bytes: int = 16_384
     max_revisions: int = 2
-    planner_timeout_seconds: float = 60.0
+    planner_timeout_seconds: float = 300.0
     verifier_timeout_seconds: float = 300.0
     lease_seconds: float = 30.0
 
@@ -72,6 +73,7 @@ class Settings:
             database_path=Path(os.getenv("SENTINEL_DB_PATH", "backend/sentinel.db")),
             environment=os.getenv("SENTINEL_ENV", "demo"),
             source_root=Path(os.getenv("SENTINEL_SOURCE_ROOT", ".")),
+            project_root=Path(os.getenv("SENTINEL_PROJECT_ROOT", "backend/project_data")),
             protected_tests_root=(Path(os.environ["SENTINEL_PROTECTED_TESTS_ROOT"])
                                   if os.getenv("SENTINEL_PROTECTED_TESTS_ROOT") else None),
             frontend_origin=os.getenv("SENTINEL_FRONTEND_ORIGIN", "http://localhost:5173"),
@@ -80,7 +82,7 @@ class Settings:
             agent_callable=os.getenv("SENTINEL_AGENT_CALLABLE", ""),
             verifier_callable=os.getenv("SENTINEL_VERIFIER_CALLABLE", ""),
             max_request_bytes=int(os.getenv("SENTINEL_MAX_REQUEST_BYTES", "16384")),
-            planner_timeout_seconds=float(os.getenv("SENTINEL_PLANNER_TIMEOUT_SECONDS", "60")),
+            planner_timeout_seconds=float(os.getenv("SENTINEL_PLANNER_TIMEOUT_SECONDS", "300")),
             verifier_timeout_seconds=float(os.getenv("SENTINEL_VERIFIER_TIMEOUT_SECONDS", "300")),
             lease_seconds=float(os.getenv("SENTINEL_LEASE_SECONDS", "30")),
         )

@@ -24,7 +24,7 @@ export interface Patch {
 export interface VerificationResult {
   job_id: string; patch_hash: string; status: WorkflowStatus | string;
   tests_total?: number; tests_passed?: number; tests_failed?: number;
-  failed_tests?: string[]; duration_ms?: number; execution_error?: string | null;
+  failed_tests?: string[]; test_results?: { name: string; outcome: string }[]; duration_ms?: number; execution_error?: string | null;
 }
 export interface Job {
   job_id: string; finding?: Finding; finding_id?: string; status: WorkflowStatus | string;

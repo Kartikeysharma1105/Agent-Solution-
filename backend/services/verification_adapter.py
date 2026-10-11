@@ -20,6 +20,8 @@ class VerificationRequest:
     source_revision: str
     verification_profile: str
     run_id: str
+    project_id: str | None = None
+    source_root: str | None = None
 
 
 ApprovalVerifier = Callable[[str, str, str, str], bool]

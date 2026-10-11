@@ -1,3 +1,7 @@
+# SENTINEL-X backend (current)
+
+For current individual session authentication, owned project upload, and exact startup commands, see [../RUN_PROJECT.md](../RUN_PROJECT.md). The single-operator token instructions below document the preserved historical demo interface and are no longer the browser login path.
+
 # SENTINEL-X backend
 
 FastAPI orchestration for the authorized `bola-demo-v1` demo target. The backend stores jobs, proposals, approvals, verification results, events, and evidence in SQLite. It never executes planner-supplied commands. A patch is verified only after deterministic policy validation and approval of its exact SHA-256 hash.
@@ -27,7 +31,7 @@ export SENTINEL_MAX_REQUEST_BYTES="16384"
 /tmp/sentinel-x-venv/bin/python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
 ```
 
-The environment in which this backend was developed has a bundled Python 3.12 binary at `/home/master-k/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3`; use it in place of `python3.12` if needed. SQLite tables are initialized automatically when the app starts. The database defaults to `backend/sentinel.db`. Do not commit this database or the operator token. `backend/config.example.env` lists the available environment variables without a credential. Generate a random token (for example, with `openssl rand -hex 32`) and set it privately; a short or missing token does not open the API.
+The environment in which this backend was developed has a bundled Python 3.12 binary at `<local-path>`; use it in place of `python3.12` if needed. SQLite tables are initialized automatically when the app starts. The database defaults to `backend/sentinel.db`. Do not commit this database or the operator token. `backend/config.example.env` lists the available environment variables without a credential. Generate a random token (for example, with `openssl rand -hex 32`) and set it privately; a short or missing token does not open the API.
 
 Open `http://127.0.0.1:8000/docs` for Swagger UI. `GET /health` returns `{"status":"ok","service":"sentinel-x-backend"}`. CORS allows only `SENTINEL_FRONTEND_ORIGIN`, defaulting to `http://localhost:5173`.
 

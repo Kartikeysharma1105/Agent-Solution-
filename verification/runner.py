@@ -96,7 +96,7 @@ async def verify_patch(
     patch_id = request.patch_id or ""
 
     # 1. Target Application Authorization Check
-    if request.target_app_id != "bola-demo-v1":
+    if request.target_app_id != "bola-demo-v1" and not (request.source_root and re.fullmatch(r"project-[0-9a-f]{32}", request.target_app_id)):
         return VerificationResult(
             job_id=job_id,
             patch_hash=patch_hash,
@@ -146,7 +146,7 @@ async def verify_patch(
 
     # 5. Prepare Isolated Ephemeral Workspace
     base_dir = Path(__file__).resolve().parent
-    lab_app_src = base_dir / "lab" / "app"
+    lab_app_src = (Path(request.source_root) if request.source_root else base_dir / "lab") / "app"
     protected_tests_src = base_dir / "protected_tests"
 
     tmp_root = base_dir / ".tmp"
@@ -159,7 +159,22 @@ async def verify_patch(
         app_dest = workspace_dir / "verification" / "lab" / "app"
         app_dest.parent.mkdir(parents=True, exist_ok=True)
         # Copy baseline without following symlinks
-        shutil.copytree(lab_app_src, app_dest, symlinks=False)
+        if request.source_root:
+            app_dest.mkdir()
+            for name in ("__init__.py", "access.py", "sample_data.py"):
+                src = lab_app_src / name
+                if not src.is_file() or src.is_symlink() or src.stat().st_size > 2 * 1024 * 1024:
+                    return VerificationResult(job_id=job_id, patch_hash=patch_hash,
+                        status=VerificationStatus.EXECUTION_ERROR.value,
+                        execution_error="Uploaded contract source is invalid.", run_id=run_id, patch_id=patch_id)
+                fd = os.open(src, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+                try:
+                    with os.fdopen(fd, "rb") as source, (app_dest / name).open("xb") as out:
+                        shutil.copyfileobj(source, out, length=65536)
+                finally:
+                    pass
+        else:
+            shutil.copytree(lab_app_src, app_dest, symlinks=False)
 
         tests_dest = workspace_dir / "verification" / "protected_tests"
         shutil.copytree(protected_tests_src, tests_dest, symlinks=False)
@@ -236,7 +251,7 @@ async def verify_patch(
             "-e", "PYTHONPATH=/workspace",
             "-e", "PYTHONDONTWRITEBYTECODE=1",
             "-e", "PYTHONUNBUFFERED=1",
-            "-v", f"{app_dest}:/workspace/verification/lab/app:rw",
+            "-v", f"{app_dest}:/workspace/verification/lab/app:ro",
             "-v", f"{tests_dest}:/workspace/verification/protected_tests:ro",
             "-v", f"{report_dir}:/workspace/report:rw",
             docker_image,

@@ -3,6 +3,7 @@
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
+import os
 import sqlite3
 from typing import Iterator
 
@@ -15,10 +16,24 @@ class Database:
     def __init__(self, path: Path):
         self.path = path
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        # The database contains password hashes, sessions, source context and
+        # approval evidence. Do not inherit a permissive host umask.
+        descriptor = os.open(self.path, os.O_CREAT | os.O_RDWR | getattr(os, "O_NOFOLLOW", 0), 0o600)
+        os.close(descriptor)
+        os.chmod(self.path, 0o600)
         self.initialize()
+        self._secure_sidecars()
+
+    def _secure_sidecars(self) -> None:
+        for suffix in ("-wal", "-shm"):
+            try:
+                os.chmod(str(self.path) + suffix, 0o600)
+            except FileNotFoundError:
+                pass
 
     def connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path, timeout=30, check_same_thread=False)
+        self._secure_sidecars()
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA foreign_keys = ON")
         connection.execute("PRAGMA busy_timeout = 30000")
@@ -114,6 +129,41 @@ class Database:
                     test_suite_id TEXT NOT NULL,
                     evidence_digest TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS users (
+                    id TEXT PRIMARY KEY,
+                    email TEXT NOT NULL UNIQUE,
+                    password_hash TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS sessions (
+                    token_hash TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    csrf_hash TEXT NOT NULL,
+                    expires_at TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS projects (
+                    id TEXT PRIMARY KEY,
+                    owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    name TEXT NOT NULL,
+                    description TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    framework TEXT,
+                    archive_name TEXT,
+                    archive_sha256 TEXT,
+                    source_revision TEXT,
+                    created_at TEXT NOT NULL,
+                    uploaded_at TEXT
+                );
+                CREATE INDEX IF NOT EXISTS idx_projects_owner ON projects(owner_id, created_at);
+                CREATE TABLE IF NOT EXISTS project_jobs (
+                    job_id TEXT PRIMARY KEY REFERENCES jobs(id),
+                    project_id TEXT NOT NULL REFERENCES projects(id)
+                );
+                CREATE TABLE IF NOT EXISTS telemetry_ids (
+                    resource_key TEXT PRIMARY KEY,
+                    opaque_id TEXT NOT NULL UNIQUE
+                );
             """)
             try:
                 columns = {row["name"] for row in db.execute("PRAGMA table_info(approvals)")}
@@ -148,6 +198,7 @@ class Database:
         db = self.connect()
         try:
             db.execute("BEGIN IMMEDIATE")
+            self._secure_sidecars()
             yield db
             db.commit()
         except Exception:
@@ -161,6 +212,7 @@ class Database:
         db = self.connect()
         try:
             db.execute("BEGIN")
+            self._secure_sidecars()
             yield db
             db.commit()
         except Exception:

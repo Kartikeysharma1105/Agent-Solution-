@@ -57,6 +57,7 @@ class VerificationRequest(_BaseModel):
     run_id: str = ""
     attempt: int = 0
     timeout_seconds: int = 30
+    source_root: Optional[str] = None
 
 
 @dataclass
@@ -69,6 +70,7 @@ class VerificationResult(_BaseModel):
     tests_passed: int = 0
     tests_failed: int = 0
     failed_tests: List[str] = field(default_factory=list)
+    test_results: List[Dict[str, str]] = field(default_factory=list)
     duration_ms: int = 0
     execution_error: Optional[str] = None
     run_id: Optional[str] = None
