@@ -29,15 +29,24 @@ def approve(client, job_id):
     return patch, response.json()
 
 
-def test_manifest_revision_and_symlink_rejected(setup, finding, tmp_path):
+def test_manifest_revision_binding(setup, finding):
     client, _, _, settings = setup
     job_id = new_job(client, finding)
     first = client.get(f"/api/jobs/{job_id}/evidence").json()["target_binding"]
     assert first["verification_profile"] == TARGET_MANIFEST.verification_profile
     assert first["source_revision"].startswith("sha256:")
+
+
+def test_manifest_revision_and_symlink_rejected(setup, finding, tmp_path):
+    client, _, _, settings = setup
     target = settings.source_root / "app" / "access.py"
     target.unlink()
-    target.symlink_to(tmp_path / "elsewhere")
+    try:
+        target.symlink_to(tmp_path / "elsewhere")
+    except OSError as exc:
+        if getattr(exc, "winerror", None) == 1314:
+            pytest.skip("Windows symlink privilege unavailable; run this test in the Linux test container")
+        raise
     response = client.post("/api/findings", json=finding)
     assert response.status_code == 503
     assert response.json()["code"] == "SOURCE_UNAVAILABLE"

@@ -1,0 +1,50 @@
+[
+  {
+    "fixture": "correct_patch.diff",
+    "ai_generated": false,
+    "approval_kind": "automated fixture-test callback",
+    "result": {
+      "job_id": "local-fixture-correct",
+      "patch_hash": "dc2ecd6167df9d86ace539c25560774b79a1d9feeab661dbd6c041143364db86",
+      "status": "VERIFIED",
+      "tests_total": 8,
+      "tests_passed": 8,
+      "tests_failed": 0,
+      "failed_tests": [],
+      "duration_ms": 3305,
+      "execution_error": null,
+      "run_id": "run_b0389983ef84",
+      "patch_id": "",
+      "test_suite_id": "bola-required-tests-v1",
+      "tests_collected": 8,
+      "collection_complete": true,
+      "execution_completed": true
+    }
+  },
+  {
+    "fixture": "incomplete_patch.diff",
+    "ai_generated": false,
+    "approval_kind": "automated fixture-test callback",
+    "result": {
+      "job_id": "local-fixture-incomplete",
+      "patch_hash": "0b0a43da8021fc583b6ab3c5bd5fb191a2fae43bff86eaf4e68245781f479754",
+      "status": "VERIFICATION_FAILED",
+      "tests_total": 8,
+      "tests_passed": 5,
+      "tests_failed": 3,
+      "failed_tests": [
+        "verification/protected_tests/test_security.py::test_user_b_cannot_access_user_a_document",
+        "verification/protected_tests/test_security.py::test_multiple_unauthorized_document_ids_rejected",
+        "verification/protected_tests/test_security.py::test_superficial_fix_blocking_only_single_id_rejected"
+      ],
+      "duration_ms": 2292,
+      "execution_error": null,
+      "run_id": "run_e9227857873d",
+      "patch_id": "",
+      "test_suite_id": "bola-required-tests-v1",
+      "tests_collected": 8,
+      "collection_complete": true,
+      "execution_completed": true
+    }
+  }
+]

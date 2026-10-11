@@ -71,6 +71,17 @@ def test_cors_exact_origin_and_configuration_validation(setup):
                                                       "Access-Control-Request-Method": "POST",
                                                       "Access-Control-Request-Headers": "X-Operator-Token"})
     assert allowed.headers["access-control-allow-origin"] == settings.frontend_origin
+    for origin in ("http://localhost:5173", "http://127.0.0.1:5173"):
+        response = client.options("/api/jobs", headers={
+            "Origin": origin, "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "X-Operator-Token",
+        })
+        assert response.status_code == 200
+        assert response.headers["access-control-allow-origin"] == origin
+    wrong_port = client.options("/api/jobs", headers={
+        "Origin": "http://127.0.0.1:5174", "Access-Control-Request-Method": "GET",
+    })
+    assert wrong_port.status_code == 400
     denied = client.options("/api/findings", headers={"Origin": "https://attacker.example",
                                                      "Access-Control-Request-Method": "POST"})
     assert "access-control-allow-origin" not in denied.headers

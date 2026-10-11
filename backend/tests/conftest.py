@@ -56,7 +56,7 @@ class FakeVerifier:
 def setup(tmp_path):
     source = tmp_path / "source" / "app"
     source.mkdir(parents=True)
-    (source / "access.py").write_text("return document\n", encoding="utf-8")
+    (source / "access.py").write_text("return document\n", encoding="utf-8", newline="\n")
     settings = Settings(database_path=tmp_path / "sentinel.db",
                         source_root=tmp_path / "source", operator_token=TOKEN)
     agent = FakeAgent()

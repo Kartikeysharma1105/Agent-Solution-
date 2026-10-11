@@ -1,11 +1,12 @@
 """FastAPI entry point: uvicorn backend.main:app --host 127.0.0.1 --port 8000."""
 
 import logging
+from urllib.parse import urlsplit
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .config import Settings
@@ -24,15 +25,25 @@ def create_app(settings: Settings | None = None, agent: AgentAdapter | None = No
                verifier: VerificationAdapter | None = None) -> FastAPI:
     settings = settings or Settings.from_env()
     app = FastAPI(title="SENTINEL-X Backend", version="0.3.0")
-    app.add_middleware(CORSMiddleware, allow_origins=[settings.frontend_origin],
+    frontend_origins = [settings.frontend_origin]
+    origin = urlsplit(settings.frontend_origin)
+    if origin.hostname in ("localhost", "127.0.0.1"):
+        alias = "127.0.0.1" if origin.hostname == "localhost" else "localhost"
+        port = f":{origin.port}" if origin.port is not None else ""
+        frontend_origins.append(f"{origin.scheme}://{alias}{port}")
+    app.add_middleware(ApiGuard, settings=settings)
+    app.add_middleware(CORSMiddleware, allow_origins=frontend_origins,
                        allow_credentials=False, allow_methods=["GET", "POST"],
                        allow_headers=["Content-Type", "X-Operator-Token"])
-    app.add_middleware(ApiGuard, settings=settings)
     workflow = Workflow(Database(settings.database_path), settings,
                         agent or ConfiguredAgentAdapter(settings),
                         verifier or ConfiguredVerificationAdapter(settings))
     workflow.recover_interrupted()
     app.state.workflow = workflow
+
+    @app.get("/", include_in_schema=False)
+    def index():
+        return RedirectResponse(url="/docs")
 
     @app.exception_handler(WorkflowError)
     async def workflow_error_handler(request: Request, error: WorkflowError):
