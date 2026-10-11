@@ -1,0 +1,40 @@
+{
+  "cli_version": "0.11.4",
+  "checkpoint_id": "01M4N94JE9XCAZ641XEQ65A3ZG",
+  "session_id": "ff289aad-7e75-445e-b875-3781543ecb21",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-11T10:46:39.7286278Z",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "save_step_count": 1,
+  "files_touched": [
+    "docs/ENTIRE_NEATHACK_SUBMISSION.md"
+  ],
+  "agent": "Antigravity",
+  "model": "",
+  "turn_id": "c52daaa5a719",
+  "session_metrics": {
+    "turn_count": 1
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-10-11T10:46:39.5794783Z",
+    "agent_lines": 9,
+    "agent_removed": 9,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 9,
+    "total_lines_changed": 18,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}
