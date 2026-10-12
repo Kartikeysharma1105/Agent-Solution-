@@ -1,0 +1,42 @@
+{
+  "cli_version": "0.11.4",
+  "checkpoint_id": "01M4RQMR3ABPDMENZ67269TRRE",
+  "strategy": "manual-commit",
+  "branch": "feat/main",
+  "checkpoints_count": 10,
+  "files_touched": [
+    ".env.example",
+    ".gitignore",
+    "Agent-Solution--main (1).zip",
+    "README.md",
+    "SENTINEL_X_Submission_Document.html",
+    "SENTINEL_X_Submission_Document.md",
+    "SHA256SUMS",
+    "SUBMISSION_README.md",
+    "backend/database.py",
+    "backend/main.py",
+    "backend/middleware.py",
+    "backend/requirements.lock",
+    "backend/requirements.txt",
+    "backend/routes/projects.py",
+    "backend/tests/test_product.py",
+    "frontend/src/App.tsx",
+    "frontend/src/api/client.ts",
+    "frontend/src/components/Header.tsx",
+    "frontend/src/components/Sidebar.tsx",
+    "frontend/src/pages/Activity.tsx",
+    "frontend/src/pages/Dashboard.tsx",
+    "frontend/src/pages/Evidence.tsx",
+    "frontend/src/pages/Findings.tsx",
+    "frontend/src/pages/Projects.tsx",
+    "verification/frontend"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ]
+}

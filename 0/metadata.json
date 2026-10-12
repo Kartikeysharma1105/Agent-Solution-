@@ -1,0 +1,188 @@
+{
+  "cli_version": "0.11.4",
+  "checkpoint_id": "01M4RQMR3ABPDMENZ67269TRRE",
+  "session_id": "76293f9f-8aa5-4e31-ac4c-3b0a46cf1203",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-12T18:57:48.2194897Z",
+  "branch": "feat/main",
+  "checkpoints_count": 10,
+  "save_step_count": 10,
+  "files_touched": [
+    ".env.example",
+    ".gitignore",
+    "Agent-Solution--main (1).zip",
+    "README.md",
+    "SENTINEL_X_Submission_Document.html",
+    "SENTINEL_X_Submission_Document.md",
+    "SHA256SUMS",
+    "SUBMISSION_README.md",
+    "backend/database.py",
+    "backend/main.py",
+    "backend/middleware.py",
+    "backend/requirements.lock",
+    "backend/requirements.txt",
+    "backend/routes/projects.py",
+    "backend/tests/test_product.py",
+    "frontend/src/App.tsx",
+    "frontend/src/api/client.ts",
+    "frontend/src/components/Header.tsx",
+    "frontend/src/components/Sidebar.tsx",
+    "frontend/src/pages/Activity.tsx",
+    "frontend/src/pages/Dashboard.tsx",
+    "frontend/src/pages/Evidence.tsx",
+    "frontend/src/pages/Findings.tsx",
+    "frontend/src/pages/Projects.tsx",
+    "verification/frontend"
+  ],
+  "agent": "Antigravity",
+  "model": "",
+  "turn_id": "0000f69aea77",
+  "session_metrics": {
+    "turn_count": 10
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-10-12T18:57:48.1310941Z",
+    "agent_lines": 429,
+    "agent_removed": 0,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 99,
+    "total_committed": 429,
+    "total_lines_changed": 528,
+    "agent_percentage": 81.25,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 1356,
+      "user_lines_removed": 99,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".env.example": 5,
+        "GENERALIZATION_PLAN.md": 31,
+        "GENERALIZED_UPGRADE_REPORT.md": 64,
+        "README.md": 4,
+        "SHA256SUMS": 31,
+        "SUBMISSION_README.md": 2,
+        "backend/ai_provider.py": 101,
+        "backend/analysis.py": 131,
+        "backend/database.py": 93,
+        "backend/main.py": 6,
+        "backend/middleware.py": 1,
+        "backend/requirements.lock": 10,
+        "backend/requirements.txt": 1,
+        "backend/routes/projects.py": 40,
+        "backend/routes/scan_patches.py": 238,
+        "backend/routes/scans.py": 205,
+        "backend/security_activity.py": 32,
+        "backend/tests/test_product.py": 1,
+        "backend/tests/test_scan_patches.py": 74,
+        "backend/tests/test_scans.py": 113,
+        "frontend/src/App.tsx": 4,
+        "frontend/src/api/client.ts": 2,
+        "frontend/src/components/Header.tsx": 2,
+        "frontend/src/components/Sidebar.tsx": 2,
+        "frontend/src/pages/Activity.tsx": 9,
+        "frontend/src/pages/Dashboard.tsx": 15,
+        "frontend/src/pages/Evidence.tsx": 5,
+        "frontend/src/pages/Findings.tsx": 44,
+        "frontend/src/pages/Projects.tsx": 47,
+        "frontend/src/pages/Settings.tsx": 20,
+        "frontend/src/pages/Verification.tsx": 23
+      },
+      "user_removed_per_file": {
+        ".env.example": 1,
+        ".gitignore": 15,
+        "README.md": 7,
+        "SHA256SUMS": 19,
+        "SUBMISSION_README.md": 11,
+        "backend/main.py": 2,
+        "backend/middleware.py": 1,
+        "backend/routes/projects.py": 5,
+        "backend/tests/test_product.py": 1,
+        "frontend/src/App.tsx": 2,
+        "frontend/src/api/client.ts": 1,
+        "frontend/src/components/Header.tsx": 2,
+        "frontend/src/components/Sidebar.tsx": 1,
+        "frontend/src/pages/Activity.tsx": 1,
+        "frontend/src/pages/Dashboard.tsx": 4,
+        "frontend/src/pages/Evidence.tsx": 3,
+        "frontend/src/pages/Findings.tsx": 7,
+        "frontend/src/pages/Projects.tsx": 15,
+        "verification/frontend": 1
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1356,
+      "agent_lines_removed": 99
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1884,
+      "agent_lines_removed": 99
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1884,
+      "agent_lines_removed": 99
+    },
+    {
+      "checkpoint_number": 5,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1884,
+      "agent_lines_removed": 99
+    },
+    {
+      "checkpoint_number": 6,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1884,
+      "agent_lines_removed": 99
+    },
+    {
+      "checkpoint_number": 7,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1884,
+      "agent_lines_removed": 99
+    },
+    {
+      "checkpoint_number": 8,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1884,
+      "agent_lines_removed": 99
+    },
+    {
+      "checkpoint_number": 9,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1884,
+      "agent_lines_removed": 99
+    },
+    {
+      "checkpoint_number": 10,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1884,
+      "agent_lines_removed": 99
+    },
+    {
+      "checkpoint_number": 11,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1884,
+      "agent_lines_removed": 99
+    }
+  ]
+}
