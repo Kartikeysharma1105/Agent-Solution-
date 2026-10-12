@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { Activity, FileSearch, LayoutDashboard, ShieldCheck, ScrollText, Crosshair, FolderOpen } from "lucide-react";
+import { Activity, FileSearch, LayoutDashboard, ShieldCheck, ScrollText, Crosshair, FolderOpen, Settings } from "lucide-react";
 const links = [
   { to: "/", label: "Overview", icon: LayoutDashboard, end: true },
   { to: "/projects", label: "Projects", icon: FolderOpen },
@@ -8,6 +8,7 @@ const links = [
   { to: "/verification", label: "Verification", icon: ShieldCheck },
   { to: "/activity", label: "Agent activity", icon: Activity },
   { to: "/evidence", label: "Evidence reports", icon: ScrollText },
+  { to: "/settings", label: "Settings", icon: Settings },
 ];
 export default function Sidebar() {
   return <aside className="sidebar">

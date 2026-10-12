@@ -1,6 +1,7 @@
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
 const TIMEOUT_MS = 15_000;
-let csrfToken = "";
+let csrfToken = (import.meta.hot?.data.csrfToken as string | undefined) || "";
+if (import.meta.hot) import.meta.hot.dispose(data => { data.csrfToken = csrfToken; });
 export function setCsrfToken(token: string) { csrfToken = token; }
 export function getCsrfToken() { return csrfToken; }
 

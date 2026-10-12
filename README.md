@@ -1,3 +1,7 @@
+# SENTINEL-X current generalized upgrade
+
+The current scan and dashboard capabilities, executed tests, setup, and limitations are documented in [GENERALIZED_UPGRADE_REPORT.md](GENERALIZED_UPGRADE_REPORT.md). The protected BOLA workflow remains the only independently verified remediation adapter.
+
 # SENTINEL-X Phase 7
 
 The current implementation supports local individual accounts, secure ZIP onboarding, and one trusted Python/FastAPI BOLA verification contract. The browser can run a real Qwen-generated patch through exact-hash approval and independent Docker tests. See [RUN_PROJECT.md](RUN_PROJECT.md), [ARCHITECTURE_FINAL.md](ARCHITECTURE_FINAL.md), and [FINAL_IMPLEMENTATION_REPORT.md](FINAL_IMPLEMENTATION_REPORT.md) for current setup, trust boundaries, and execution evidence. Older phase reports below are historical snapshots.
@@ -53,10 +57,3 @@ PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest agent/tests backend/tests v
 ```
 
 The fixture integration test in `agent/tests/test_fixture_integration.py` uses named fixture diffs to exercise wiring and real Docker verification. It does not test model quality. Hosted Neatlogs export requires `NEATLOGS_API_KEY` and a separate authenticated Doctor probe.
-
-## Development Provenance & Entire CLI Integration
-
-SENTINEL-X integrates with the official [Entire CLI](https://entire.io) (`v0.11.4+`) to record AI-assisted coding sessions in Antigravity and associate development provenance with Git commits.
-- **Scope**: Entire tracks development session provenance only; it does **not** replace the runtime verifier, approval gate, Docker sandbox, or protected tests.
-- **Documentation**: See [docs/ENTIRE_INTEGRATION.md](docs/ENTIRE_INTEGRATION.md) for full setup, diagnostics, security, and checkpoint configuration.
-- **Enablement**: `entire enable --agent antigravity --skip-push-sessions` (local-only checkpoint tracking).

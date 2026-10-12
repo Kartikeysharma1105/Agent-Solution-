@@ -164,6 +164,96 @@ class Database:
                     resource_key TEXT PRIMARY KEY,
                     opaque_id TEXT NOT NULL UNIQUE
                 );
+                CREATE TABLE IF NOT EXISTS project_scans (
+                    id TEXT PRIMARY KEY,
+                    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+                    status TEXT NOT NULL,
+                    framework TEXT NOT NULL,
+                    languages_json TEXT NOT NULL,
+                    manifest_json TEXT NOT NULL,
+                    file_count INTEGER NOT NULL,
+                    reason TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    completed_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_scans_project ON project_scans(project_id, created_at);
+                CREATE TABLE IF NOT EXISTS scan_findings (
+                    id TEXT PRIMARY KEY,
+                    scan_id TEXT NOT NULL REFERENCES project_scans(id) ON DELETE CASCADE,
+                    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+                    category TEXT NOT NULL,
+                    severity TEXT NOT NULL,
+                    confidence TEXT NOT NULL,
+                    file_path TEXT NOT NULL,
+                    line_start INTEGER NOT NULL,
+                    line_end INTEGER NOT NULL,
+                    evidence TEXT NOT NULL,
+                    explanation TEXT NOT NULL,
+                    recommendation TEXT NOT NULL,
+                    detection_source TEXT NOT NULL,
+                    validation_status TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_findings_project ON scan_findings(project_id, scan_id);
+                CREATE TABLE IF NOT EXISTS security_activity (
+                    id TEXT PRIMARY KEY,
+                    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+                    actor_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    event_type TEXT NOT NULL,
+                    reference_id TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_security_activity_project ON security_activity(project_id, created_at);
+                CREATE TABLE IF NOT EXISTS scan_ai_reviews (
+                    id TEXT PRIMARY KEY,
+                    scan_id TEXT NOT NULL REFERENCES project_scans(id) ON DELETE CASCADE,
+                    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+                    consent_id TEXT NOT NULL REFERENCES source_share_consents(id) ON DELETE CASCADE,
+                    model TEXT NOT NULL,
+                    response_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_ai_reviews_scan ON scan_ai_reviews(scan_id, created_at);
+                CREATE TABLE IF NOT EXISTS scan_patch_proposals (
+                    id TEXT PRIMARY KEY,
+                    finding_id TEXT NOT NULL REFERENCES scan_findings(id) ON DELETE CASCADE,
+                    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+                    source_sha256 TEXT NOT NULL,
+                    patch_hash TEXT NOT NULL,
+                    diff TEXT NOT NULL,
+                    replacement_line TEXT NOT NULL,
+                    root_cause TEXT NOT NULL,
+                    explanation TEXT NOT NULL,
+                    model TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_scan_patches_finding ON scan_patch_proposals(finding_id, created_at);
+                CREATE TABLE IF NOT EXISTS scan_patch_approvals (
+                    id TEXT PRIMARY KEY,
+                    proposal_id TEXT NOT NULL UNIQUE REFERENCES scan_patch_proposals(id) ON DELETE CASCADE,
+                    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    patch_hash TEXT NOT NULL,
+                    decision TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS scan_patch_checks (
+                    id TEXT PRIMARY KEY,
+                    proposal_id TEXT NOT NULL REFERENCES scan_patch_proposals(id) ON DELETE CASCADE,
+                    status TEXT NOT NULL,
+                    result_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS source_share_consents (
+                    id TEXT PRIMARY KEY,
+                    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+                    scan_id TEXT NOT NULL REFERENCES project_scans(id) ON DELETE CASCADE,
+                    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    files_json TEXT NOT NULL,
+                    model TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    purpose TEXT NOT NULL DEFAULT 'AI_REVIEW'
+                );
             """)
             try:
                 columns = {row["name"] for row in db.execute("PRAGMA table_info(approvals)")}
@@ -171,6 +261,9 @@ class Database:
                     db.execute("ALTER TABLE approvals ADD COLUMN attempt INTEGER")
                     db.execute("""UPDATE approvals SET attempt =
                                   (SELECT attempt FROM patch_proposals WHERE id = approvals.patch_id)""")
+                consent_columns = {row["name"] for row in db.execute("PRAGMA table_info(source_share_consents)")}
+                if "purpose" not in consent_columns:
+                    db.execute("ALTER TABLE source_share_consents ADD COLUMN purpose TEXT NOT NULL DEFAULT 'AI_REVIEW'")
                 job_columns = {row["name"] for row in db.execute("PRAGMA table_info(jobs)")}
                 if "version" not in job_columns:
                     db.execute("ALTER TABLE jobs ADD COLUMN version INTEGER NOT NULL DEFAULT 0")

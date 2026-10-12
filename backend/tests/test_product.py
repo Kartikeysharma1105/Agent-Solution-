@@ -165,7 +165,7 @@ def test_corrupt_duplicate_symlink_and_unsupported_archives(product):
     assert client.post(f"/api/projects/{new_project()}/upload", headers={**headers, "Content-Type": "application/zip"}, content=stream.getvalue()).status_code == 422
     unsupported = client.post(f"/api/projects/{new_project()}/upload", headers={**headers, "Content-Type": "application/zip"}, content=archive({"main.js": "console.log('hello')"}))
     assert unsupported.status_code == 200
-    assert unsupported.json()["status"] == "UNSUPPORTED"
+    assert unsupported.json()["status"] == "READY_FOR_SCAN"
 
 
 def test_oversized_archive_rejected(product):

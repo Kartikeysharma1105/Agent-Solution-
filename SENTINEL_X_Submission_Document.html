@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SENTINEL-X — neatHack 2026 Official Submission Dossier</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: rgba(18, 24, 38, 0.95);
+      --border: #1e293b;
+      --border-accent: #3b82f6;
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --primary: #3b82f6;
+      --primary-gradient: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+      --accent-green: #10b981;
+      --accent-cyan: #06b6d4;
+      --accent-purple: #a855f7;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 40px 20px;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 48px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+    }
+
+    .header {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 32px;
+      margin-bottom: 36px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      background: rgba(59, 130, 246, 0.15);
+      color: #60a5fa;
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      border-radius: 9999px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 16px;
+    }
+
+    .badge-verified {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border-color: rgba(16, 185, 129, 0.3);
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      background: var(--primary-gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      font-size: 1.15rem;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+    }
+
+    h2 {
+      font-size: 1.45rem;
+      font-weight: 700;
+      color: #e2e8f0;
+      margin-top: 36px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    h2::before {
+      content: "";
+      width: 4px;
+      height: 22px;
+      background: var(--primary);
+      border-radius: 2px;
+    }
+
+    p {
+      margin-bottom: 16px;
+      color: #cbd5e1;
+      font-size: 1rem;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      margin: 20px 0 30px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    th {
+      background: rgba(30, 41, 59, 0.7);
+      color: #e2e8f0;
+      font-weight: 600;
+      font-size: 0.9rem;
+      text-align: left;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    td {
+      padding: 14px 18px;
+      font-size: 0.92rem;
+      border-bottom: 1px solid rgba(30, 41, 59, 0.5);
+      color: #cbd5e1;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .proof-box {
+      background: rgba(16, 185, 129, 0.05);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      border-radius: 12px;
+      padding: 24px;
+      margin: 24px 0;
+    }
+
+    .proof-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #34d399;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    a {
+      color: #60a5fa;
+      text-decoration: none;
+      word-break: break-all;
+      transition: color 0.15s;
+    }
+
+    a:hover {
+      color: #93c5fd;
+      text-decoration: underline;
+    }
+
+    code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.88rem;
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid rgba(148, 163, 184, 0.15);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: #38bdf8;
+    }
+
+    pre {
+      background: #090d16;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 18px;
+      overflow-x: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.88rem;
+      color: #e2e8f0;
+      margin: 16px 0 24px;
+      line-height: 1.5;
+    }
+
+    ul, ol {
+      margin: 16px 0 24px 24px;
+      color: #cbd5e1;
+    }
+
+    li {
+      margin-bottom: 8px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+      margin: 20px 0;
+    }
+
+    .card {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+    }
+
+    .card-title {
+      font-weight: 700;
+      color: #f8fafc;
+      margin-bottom: 8px;
+    }
+
+    .card-desc {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .footer {
+      margin-top: 48px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    @media print {
+      body {
+        background: #fff;
+        color: #000;
+        padding: 0;
+      }
+      .container {
+        border: none;
+        box-shadow: none;
+        padding: 20px;
+        background: #fff;
+      }
+      h1 {
+        color: #000;
+        -webkit-text-fill-color: #000;
+      }
+      h2, p, td, th, li {
+        color: #111;
+      }
+      a {
+        color: #0066cc;
+      }
+      pre, code {
+        background: #f1f5f9;
+        color: #0f172a;
+        border-color: #cbd5e1;
+      }
+      .proof-box {
+        background: #f0fdf4;
+        border-color: #86efac;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div class="header">
+      <div class="badge badge-verified">✓ Verified Submission Dossier</div>
+      <h1>SENTINEL-X</h1>
+      <div class="subtitle">Autonomous AI Vulnerability Patching & Docker Verification Engine</div>
+      <p style="margin-bottom: 0; color: #94a3b8;">
+        Official Submission for <strong>neatHack 2026</strong> · Track: <strong>Best Use of Entire (Checkpoints)</strong>
+      </p>
+    </div>
+
+    <div class="proof-box">
+      <div class="proof-title">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        Entire CLI Live Public Proof & Verification
+      </div>
+      <p style="margin-bottom: 12px;">The complete development provenance, Antigravity session traces, and code diffs are live on the Entire web platform:</p>
+      <p style="margin-bottom: 10px;">
+        👉 <strong>Official Entire Live Link:</strong><br>
+        <a href="https://entire.io/gh/rudrapaliwal-1/neatlog/commit/254fdac2b2b858e5c8adab6361f9553e4e7d44d5" target="_blank">
+          https://entire.io/gh/rudrapaliwal-1/neatlog/commit/254fdac2b2b858e5c8adab6361f9553e4e7d44d5
+        </a>
+      </p>
+      <p style="margin-bottom: 0;">
+        👉 <strong>Secondary Commit Link:</strong><br>
+        <a href="https://entire.io/gh/rudrapaliwal-1/neatlog/commit/2f12c70f72ff81df81039260793ae55842ca9811" target="_blank">
+          https://entire.io/gh/rudrapaliwal-1/neatlog/commit/2f12c70f72ff81df81039260793ae55842ca9811
+        </a>
+      </p>
+    </div>
+
+    <h2>Submission Credentials & Metadata</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Field</th>
+          <th>Submission Value</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Project Name</strong></td>
+          <td><strong>SENTINEL-X</strong></td>
+        </tr>
+        <tr>
+          <td><strong>Hackathon Track</strong></td>
+          <td><strong>Best Use of Entire</strong> (Checkpoints & Session Tracking)</td>
+        </tr>
+        <tr>
+          <td><strong>Primary Checkpoint ID</strong></td>
+          <td><code>01M4N94JE9XCAZ641XEQ65A3ZG</code></td>
+        </tr>
+        <tr>
+          <td><strong>Secondary Checkpoint IDs</strong></td>
+          <td><code>01M4N9MJP3YZTR3Q8WY5NGQF38</code>, <code>01M4NAQQ8GVMQKK3JCY2HVZY04</code></td>
+        </tr>
+        <tr>
+          <td><strong>Commit SHA</strong></td>
+          <td><code>254fdac2b2b858e5c8adab6361f9553e4e7d44d5</code></td>
+        </tr>
+        <tr>
+          <td><strong>Public Repository</strong></td>
+          <td><a href="https://github.com/rudrapaliwal-1/neatlog" target="_blank">https://github.com/rudrapaliwal-1/neatlog</a></td>
+        </tr>
+        <tr>
+          <td><strong>Team Repository</strong></td>
+          <td><a href="https://github.com/Kartikeysharma1105/Agent-Solution-" target="_blank">https://github.com/Kartikeysharma1105/Agent-Solution-</a></td>
+        </tr>
+        <tr>
+          <td><strong>Entire Version</strong></td>
+          <td><code>Entire CLI 0.11.4</code> (windows/amd64)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>Core Innovations & Key Capabilities</h2>
+    <div class="grid">
+      <div class="card">
+        <div class="card-title">🔍 Vulnerability Detection</div>
+        <div class="card-desc">Parses target codebases for OWASP Top 10 security vulnerabilities, specializing in BOLA (Broken Object Level Authorization).</div>
+      </div>
+      <div class="card">
+        <div class="card-title">🤖 AI Patch Synthesis</div>
+        <div class="card-desc">Uses multi-agent LLM reasoning to synthesize surgical, minimal security patches that preserve application behavior.</div>
+      </div>
+      <div class="card">
+        <div class="card-title">🛡️ Cryptographic Gate</div>
+        <div class="card-desc">Enforces human-in-the-loop sign-off bound strictly to SHA-256 patch hashes. Zero unverified code execution.</div>
+      </div>
+      <div class="card">
+        <div class="card-title">🐳 Docker Sandbox Verifier</div>
+        <div class="card-desc">Executes isolated Docker containers running protected test suites to prove that patches work without regressions.</div>
+      </div>
+    </div>
+
+    <h2>How SENTINEL-X Uses Entire CLI</h2>
+    <p>SENTINEL-X directly integrates Entire CLI to create a verifiable, tamper-resistant trail of AI-human development:</p>
+    <ul>
+      <li><strong>Antigravity Hooks Integration:</strong> Intercepts development through <code>.agents/hooks.json</code> (PreInvocation, PreToolUse, Stop).</li>
+      <li><strong>Git Ref Preservation:</strong> Pushes <code>refs/entire/checkpoints/*</code> to origin so provenance is preserved across branches and collaborators.</li>
+      <li><strong>Auditability:</strong> Judges and auditors can inspect every prompt, file touch, and verification step at <code>https://entire.io</code>.</li>
+    </ul>
+
+    <h2>Test Suite & Quality Assurance</h2>
+    <ul>
+      <li><strong>196 / 196 Backend & Agent Tests Passed</strong> (0 failures, 0 skipped).</li>
+      <li><strong>8 / 8 Isolated Docker Verifier Tests Passed</strong> against real BOLA vulnerability fixtures.</li>
+      <li><strong>Frontend Build Passed:</strong> Clean TypeScript compilation and production bundle build.</li>
+      <li><strong>Secret Isolation:</strong> Verified clean history; no credentials or databases committed.</li>
+    </ul>
+
+    <div class="footer">
+      SENTINEL-X Team · Prepared for neatHack 2026 Evaluation · October 12, 2026
+    </div>
+  </div>
+
+</body>
+</html>

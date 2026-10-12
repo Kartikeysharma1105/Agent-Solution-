@@ -77,7 +77,7 @@ class ApiGuard:
             if method in SAFE:
                 await self.app(scope, receive, secure_send)
                 return
-            limits = 12 * 1024 * 1024 if path.startswith("/api/projects/") and path.endswith("/upload") else self.settings.max_request_bytes
+            limits = 12 * 1024 * 1024 if path.startswith("/api/projects/") and (path.endswith("/upload") or path.endswith("/upload-file")) else self.settings.max_request_bytes
             lengths = [v for k, v in headers if k.lower() == b"content-length"]
             if len(lengths) > 1:
                 await reply(400, "invalid content length", "INVALID_REQUEST")

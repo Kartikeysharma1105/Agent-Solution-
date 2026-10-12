@@ -14,6 +14,7 @@ import zipfile
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
+from ..analysis import SOURCE_EXTENSIONS, classify
 from ..auth import current_user
 from ..database import utc_now
 from ..manifest import TARGET_MANIFEST
@@ -92,7 +93,7 @@ def project_files(project_id: str, request: Request):
         return []
     root = _source_dir(request, project_id)
     return sorted(path.relative_to(root).as_posix() for path in root.rglob("*")
-                  if path.is_file() and path.suffix == ".py" and not SENSITIVE.search(path.relative_to(root).as_posix()))
+                  if path.is_file() and path.suffix.lower() in SOURCE_EXTENSIONS and not SENSITIVE.search(path.relative_to(root).as_posix()))
 
 
 @router.get("/{project_id}/files/{file_path:path}")
@@ -100,7 +101,7 @@ def project_file(project_id: str, file_path: str, request: Request):
     _project(request, project_id)
     name = PurePosixPath(file_path)
     if (file_path.startswith("/") or "\\" in file_path or ".." in name.parts or
-            name.suffix != ".py" or SENSITIVE.search(file_path)):
+            name.suffix.lower() not in SOURCE_EXTENSIONS or SENSITIVE.search(file_path)):
         raise WorkflowError("file is not available", 404, "FILE_NOT_FOUND")
     root = _source_dir(request, project_id).resolve()
     path = (root / file_path).resolve()
@@ -181,14 +182,14 @@ async def upload(project_id: str, request: Request):
             for child in list(nested.iterdir()):
                 child.rename(temporary / child.name)
             nested.rmdir()
-        framework = "Python/FastAPI" if any((temporary / x).is_file() and "fastapi" in (temporary / x).read_text(errors="ignore").lower()
-                                         for x in ("requirements.txt", "pyproject.toml")) else "Unknown"
+        profile_data = classify(temporary)
+        framework = profile_data["framework"]
         profile = "bola-required-tests-v1"
         supported = framework == "Python/FastAPI" and (temporary / "app" / "access.py").is_file() and (temporary / "app" / "sample_data.py").is_file()
         if supported:
             source = (temporary / "app" / "access.py").read_text(encoding="utf-8")
             supported = "def get_document(" in source and "    return dict(doc)\n" in source
-        status = "SUPPORTED_BOLA_CONTRACT" if supported else "UNSUPPORTED"
+        status = "SUPPORTED_BOLA_CONTRACT" if supported else ("READY_FOR_SCAN" if profile_data["supported"] else "UNSUPPORTED")
         revision = TARGET_MANIFEST.source_revision(temporary, Path(__file__).resolve().parents[2] / "verification" / "protected_tests") if supported else None
         temporary.rename(destination)
         with request.app.state.workflow.db.transaction() as db:
@@ -202,6 +203,40 @@ async def upload(project_id: str, request: Request):
         raise WorkflowError("corrupted ZIP archive", 422, "INVALID_ARCHIVE") from None
     except Exception:
         shutil.rmtree(temporary, ignore_errors=True)
+        raise
+
+
+@router.post("/{project_id}/upload-file")
+async def upload_file(project_id: str, request: Request):
+    row = _project(request, project_id)
+    if row["status"] != "CREATED":
+        raise WorkflowError("project already has an upload", 409, "UPLOAD_EXISTS")
+    name = request.headers.get("x-file-name", "")
+    if (not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_. -]{0,127}", name) or
+            name in {".", ".."} or SENSITIVE.search(name)):
+        raise WorkflowError("invalid source filename", 422, "INVALID_FILE_NAME")
+    if request.headers.get("content-type", "").split(";")[0] not in {"text/plain", "application/octet-stream", "text/x-python", "text/javascript", "application/javascript"}:
+        raise WorkflowError("source file content type is unsupported", 415, "UNSUPPORTED_MEDIA_TYPE")
+    data = await request.body()
+    if not data or len(data) > MAX_FILE or b"\x00" in data:
+        raise WorkflowError("source file size or content is invalid", 422, "INVALID_SOURCE_FILE")
+    try:
+        data.decode("utf-8")
+    except UnicodeDecodeError:
+        raise WorkflowError("source file must be UTF-8 text", 422, "INVALID_SOURCE_FILE") from None
+    destination = _source_dir(request, project_id)
+    destination.mkdir(parents=True, exist_ok=False)
+    try:
+        (destination / name).write_bytes(data)
+        profile = classify(destination)
+        status = "READY_FOR_SCAN" if profile["supported"] else "UNSUPPORTED"
+        with request.app.state.workflow.db.transaction() as db:
+            db.execute("UPDATE projects SET status=?, framework=?, archive_name=?, archive_sha256=?, uploaded_at=? WHERE id=? AND owner_id=? AND status='CREATED'",
+                       (status, profile["framework"], name, "sha256:" + hashlib.sha256(data).hexdigest(), utc_now(), project_id, current_user()))
+        request.app.state.workflow._telemetry("project.uploaded", project_id=project_id, success=True)
+        return _public(_project(request, project_id))
+    except Exception:
+        shutil.rmtree(destination, ignore_errors=True)
         raise
 
 

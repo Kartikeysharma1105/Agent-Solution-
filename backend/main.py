@@ -16,7 +16,8 @@ from .database import Database
 from .middleware import ApiGuard
 from .models import WorkflowError
 from .readiness import probe
-from .routes import approvals, findings, jobs, verification, projects
+from .security_activity import router as security_activity_router
+from .routes import approvals, findings, jobs, verification, projects, scans, scan_patches
 from .services.agent_adapter import AgentAdapter, ConfiguredAgentAdapter
 from .services.verification_adapter import ConfiguredVerificationAdapter, VerificationAdapter
 from .workflow import Workflow
@@ -38,7 +39,7 @@ def create_app(settings: Settings | None = None, agent: AgentAdapter | None = No
     app.add_middleware(ApiGuard, settings=settings, db=db)
     app.add_middleware(CORSMiddleware, allow_origins=frontend_origins,
                        allow_credentials=True, allow_methods=["GET", "POST", "DELETE"],
-                       allow_headers=["Content-Type", "X-Operator-Token", "X-CSRF-Token", "X-Archive-Name"])
+                       allow_headers=["Content-Type", "X-Operator-Token", "X-CSRF-Token", "X-Archive-Name", "X-File-Name"])
     workflow = Workflow(db, settings,
                         agent or ConfiguredAgentAdapter(settings),
                         verifier or ConfiguredVerificationAdapter(settings))
@@ -91,6 +92,9 @@ def create_app(settings: Settings | None = None, agent: AgentAdapter | None = No
 
     app.include_router(auth_router)
     app.include_router(projects.router)
+    app.include_router(scans.router)
+    app.include_router(scan_patches.router)
+    app.include_router(security_activity_router)
     app.include_router(findings.router)
     app.include_router(jobs.router)
     app.include_router(approvals.router)
